@@ -10,9 +10,9 @@ The delivered POC runs an eight-seat game with one human at seat 0 and seven eng
 
 Full parity with the official game remains a product target. The pinned engine, its catalog, and the exercised scenarios establish the current implementation scope. Catalog membership, the `reachable` flag, and downloaded artwork each measure different things. None alone establishes that every official mechanic has been validated.
 
-The active renderer uses **HTML elements, CSS perspective/transforms, SVG, and the Web Animations API**. Three.js is installed, but the current application source does not instantiate a Three.js scene, camera, renderer, or raycaster. Its present visual depth comes from tilted card portraits, backing layers, displacement along Z, shadows, recoil, and particles.
+The card renderer is **Three.js** (WebGL). Shop, warband and hand cards are persistent scene objects keyed by zone and entity ID, picked by raycasting, and moved by springs or timed poses. Minion combat and the refresh, freeze and upgrade effects play on the table. The HUD, tooltips, choices, targeting arrow, damage numbers and hero panels remain an HTML/SVG overlay on the same 1440 × 810 board coordinates. Card faces are procedural placeholders drawn from engine data (name, stats, tier, price, frozen state); official card art appears only in choices and hero panels. The former HTML/CSS card renderer was removed on 9 November 2026 and is not maintained; it remains in Git history up to commit `4ae870b`.
 
-The accepted visual direction uses the wooden tavern from concept A, targeted spell interaction from concept B, and automatic combat playback from concept C. The separate stat-change illustration such as “1/1 → 3/3” and the combat timeline were explicitly removed from the design direction. The earlier standalone asset inspection page was also rolled back. Preserve these decisions during future UI work.
+The accepted visual direction uses the wooden tavern from concept A (the WebGL table is a procedural wood surface with a leather mat; `tavern.png` is no longer drawn), targeted spell interaction from concept B, and automatic combat playback from concept C. The separate stat-change illustration such as “1/1 → 3/3” and the combat timeline were explicitly removed from the design direction. The earlier standalone asset inspection page was also rolled back. Preserve these decisions during future UI work.
 
 ## 2. Ownership of state and execution
 
@@ -43,16 +43,19 @@ All paths below are relative to the repository root. `work/`, dependencies, gene
 | `backend/requirements.in` | Direct Python dependencies and local wheel reference |
 | `backend/requirements.txt` | Locked Python dependencies and local wheel reference |
 | `frontend/index.html` | Board regions, scenario selector, hero panels, targeting SVG |
-| `frontend/src/board.ts` | Main controller, snapshot lifecycle, controls, pointer input, drag/drop, target selection |
+| `frontend/src/board.ts` | Controller: snapshot lifecycle, commits, input lock, HUD controls, choices, tooltip, targeting arrow |
+| `frontend/src/view.ts` | Contract between the controller and the card renderer |
+| `frontend/src/core/` | Renderer-independent rules: gesture → legal action (`intents.ts`), command submission (`session.ts`), combat side and replay identity (`replay.ts`), replay → ordered playback steps (`combat-script.ts`) |
+| `frontend/src/three/` | WebGL renderer: stage and table (`stage.ts`), slot layout (`layout.ts`), snapshot reconciliation (`reconciler.ts`), card objects and faces (`entities.ts`), stage clock and timed poses (`motion.ts`), particles and pinned labels (`fx.ts`), minion combat (`combat.ts`), tavern effects (`effects.ts`), `?stats` panel (`stats.ts`), input and wiring (`view.ts`) |
+| `frontend/test/` | Node tests for `core/` and the pure renderer modules (`npm run test:frontend`) |
 | `frontend/src/game-api.ts` | TypeScript protocol types and HTTP helpers |
-| `frontend/src/pieces.ts` | Card/token DOM creation, stat badges, board coordinate conversion |
-| `frontend/src/combat.ts` | Minion combat sequencing, contact feedback, death and summon transitions |
+| `frontend/src/pieces.ts` | DOM badge helper, board scale and coordinate conversion |
+| `frontend/src/combat.ts` | Combat presentation around the table: hero panels, phase and result text |
 | `frontend/src/hero-effects.ts` | Hero panels, resource changes, hero attacks, armor fracture, defeat feedback |
-| `frontend/src/tavern-effects.ts` | Refresh, freeze/thaw, and upgrade effects |
-| `frontend/src/board.css` | Tavern layout, card framing, depth layers, badges, particles, hero presentation |
+| `frontend/src/board.css` | HUD layout, controls, damage starburst, hero presentation, overlay layers |
 | `frontend/src/demo-art.ts` | Visible-card image loading and missing-art fallback |
 | `frontend/src/demo-art.json` | Artwork provenance, card mapping, dimensions, and pinned SHA-256 values |
-| `frontend/public/assets/tavern.png` | Selected wooden board background |
+| `frontend/public/assets/tavern.png` | Former wooden board background, unused by the WebGL renderer |
 | `frontend/public/assets/unknown-card.svg` | Local placeholder |
 | `frontend/public/assets/official/` | Downloaded official PNGs, named by engine card ID |
 | `scripts/restore_demo_art.py` | Repeatable restoration of artwork already listed in the manifest |
@@ -64,7 +67,7 @@ All paths below are relative to the repository root. `work/`, dependencies, gene
 | `work/combat-build/` | Local build helper, compiler cache, logs, wheel output, and static-serving helper |
 | `work/art/full/` | Discovery scripts, cached official metadata, verification script, missing-art CSV |
 
-The Git repository is initialized on `main`, but **it has no commits at handover time**. The application files are still untracked. Copying the working directory preserves work that a remote clone currently cannot recover. Establish a reviewed baseline commit before relying on Git for recovery or collaboration.
+The Git repository has commits on `main`, starting from the baseline `e3c80ec`, with no remote configured. Ignored files (`work/`, downloaded art, the vendored build environment) still live only in the working directory.
 
 ## 4. Installation and operation
 
@@ -114,8 +117,11 @@ Use these checks when bringing up a new environment.
 .venv/bin/python -c 'import taverngym; print(taverngym.game_version()); print(taverngym.build_info())'
 .venv/bin/python -m pytest -q
 npm run check:frontend
+npm run test:frontend
 npm run build --workspace frontend
 ```
+
+Append `?stats` to the board URL for frame rate, CPU frame time and draw counts.
 
 ## 5. Client protocol and server guarantees
 
@@ -183,11 +189,11 @@ Implemented interactions include the following.
 - Buy by clicking a shop card or dragging it into the hand.
 - Enlarge hand cards on hover and show the engine's Chinese card name and effect text in tooltips.
 - Play a minion by clicking it or dropping it into a legal board position.
-- Display an insertion marker and valid-zone feedback during drag.
+- Open a gap in the warband at the insertion point and highlight the valid drop zone during drag.
 - Reorder friendly minions by dragging them along the board.
 - Sell by dragging a friendly minion back into the shop row.
 - Cast spells through the hand interaction, then select a legal target when the engine opens a targeting decision.
-- Draw a curved SVG targeting arrow and highlight eligible card entities.
+- Draw a curved SVG targeting arrow from the cast card and outline eligible card entities (green, gold under the pointer).
 - Cancel a cancellable decision with the button or Escape.
 - Render hero-power controls, minion activation through card interaction, and the Dark Gift button when legal.
 - Display generic hero-selection and discover/choice options from the engine's pending decision.
@@ -205,12 +211,12 @@ These effects play after successful refresh, freeze, or upgrade responses. Rejec
 
 | Operation | Implemented feedback |
 | --- | --- |
-| Refresh | Clone departing cards before replacing the shop, flip them toward the rear of the table, then stagger new cards into place with perspective rotation and changing shadows. Retained slot IDs keep their position without a departure effect. |
-| Freeze | Sweep a cold wave across the shop, lift each affected card, and form an ice shell with crystal facets. The shell persists according to each slot's `frozen` flag. |
-| Thaw | Remove the shell through the confirmed state update and scatter ice fragments from previously frozen slots. |
-| Upgrade | Raise a faceted gold badge showing the new tier, expand a table-plane ring, emit gold fragments, and lift the shop cards briefly. |
+| Refresh | Departing card objects are detached from the shop and tumble toward the back of the table before shrinking away. New cards stay hidden, then flip in from the front right one by one. Retained slot IDs keep their objects and positions. |
+| Freeze | Sweep a cold wave across the shop and grow a clear ice block on each card while it hops. The block persists according to each slot's `frozen` flag. |
+| Thaw | Remove the block through the confirmed state update and shed ice shards from previously frozen slots. |
+| Upgrade | Raise a gold crest sprite with the new tier over the shop, expand a ring on the table, emit gold shards, and hop the shop cards. |
 
-Representative timing is roughly 260 ms for old-card departure, 460 ms for each new-card arrival, 440 ms for ice-shell formation, and 980 ms for the upgrade crest. Effects clean up their temporary elements and animation handles. Tavern and hero effects respect reduced-motion preferences. Minion combat still uses fixed durations and needs equivalent accessibility handling.
+Representative timing is roughly 260 ms for old-card departure, 460 ms for each new-card arrival, 440 ms for ice formation, and 980 ms for the upgrade crest. Effects remove their meshes and textures when they finish. The HUD button press stays a DOM animation. Under reduced motion, timed poses jump to their end and particles are skipped, while pauses between combat steps still hold so results stay readable.
 
 ## 8. Combat data and local engine modifications
 
@@ -232,9 +238,11 @@ Combat sides require explicit mapping. `a` is a player seat, `b` is a player sea
 
 For each frame, the client first plays its ordered impacts against the currently displayed bodies. It then removes dead entities, reconciles the next board snapshot, and animates newly appearing entities. Entity IDs connect contacts to visible pieces. Deathrattle summons and reborn replacements are represented through these frame changes.
 
-Minion attacks include a short lift and anticipation hold, a perspective lunge, contact, defender recoil and flash, and a raised return arc. A bronze backing layer gives the token thickness. A separate shadow stays on the table, becomes larger and softer during lift, and tightens at contact. The attack approach is approximately 450 ms, followed by an 80 ms contact hold and a 330 ms return.
+`core/combat-script.ts` turns a replay into ordered steps (contacts, resolved boards, deaths, summons, shield breaks), local side first. On the table the hand sinks below the screen, the shop clears, and the opposing warband drops into the shop row as `enemy:eid` objects. The friendly warband keeps its recruit objects (`board:eid`), since combat uses the same entity IDs; minions that die in combat grow back when the recruit snapshot returns.
 
-At contact, both participants receive their own yellow damage starburst and their own health update. The badge remains attached to its recipient through recoil. Shield absorption displays “抵挡” and produces fragments. Damage text remains visible before dead entities shrink and fade. Summoned entities grow into place. Ordered impacts preserve successive Windfury hits within one frame.
+Minion attacks rise toward the camera and hold, lunge to contact, make the defender recoil and flash, and return on a raised arc. Each card's shadow stays on the table and grows softer as it lifts. The attack approach is approximately 450 ms, followed by an 80 ms contact hold and a 330 ms return.
+
+At contact, both participants receive their own yellow damage starburst (a DOM label pinned to the card through recoil) and their face redraws with the immediate health. Shield absorption displays “抵挡” and sheds gold shards. Damage text remains visible before dead entities shrink away. Summoned entities grow into place. Ordered impacts preserve successive Windfury hits within one frame.
 
 The hero panels appear at the top and bottom during combat, with separate armor and health counters over cropped official portraits. The enemy panel is hidden on return to recruitment. Ghost presentation hides ordinary health and armor counters. A winning player does not attack a defeated ghost hero.
 
@@ -261,7 +269,7 @@ Scenarios use seed 17, select the first offered hero for each seat, inject demon
 
 Example URLs use `?scenario=collision` or `?scenario=hero_damage` on either the development or combined-preview origin. Restarting a scenario creates a new independent session.
 
-Fresh handover verification on 9 November 2026 passed **31 backend tests** and the TypeScript check. All **3,273 pinned artwork files** exist and match their manifest hashes. The loaded native module fingerprint matches the patched build manifest.
+Fresh handover verification on 9 November 2026 passed **31 backend tests** and the TypeScript check. After the Three.js migration the same day, **14 frontend tests** passed and the browser checks covered drag buy, drag play, spell targeting, the `deathrattle`, `collision` and `hero_damage` combats, refresh, freeze, thaw and upgrade. All **3,273 pinned artwork files** exist and match their manifest hashes. The loaded native module fingerprint matches the patched build manifest.
 
 The automated tests cover legal and illegal actions, stale and repeated requests, simultaneous commits, HTTP/WebSocket deduplication, rollback after bot failure, player-view privacy, selection follow-ups, buy/play/move/sell flows, deterministic scenarios, shield and Windfury contact details, deathrattle and reborn identity, simultaneous lethal damage, hero armor absorption and overflow, fatal hero damage, Ice Block, opponent damage on victory, preserved historical settlement, ties, and loading old states without hero snapshot fields.
 
@@ -340,15 +348,15 @@ The following sequence proposes priorities and acceptance criteria for future de
 | P0 | Audit rule and UI coverage | Every supported legal action has an accessible UI path, including magnetize and special targets. Track tested cards/heroes/mechanics against the pinned rules version and record discrepancies |
 | P1 | Harden replay and client recovery | Handle interrupted/cancelled animation, read failures, duplicate combat delivery, stale responses, missing entities, and truncated combats while preserving server state and restoring usable input |
 | P1 | Complete game-system panels | Add appropriate trinket, quest, reward, secret, buddy, Dark Gift, and scouting views, with explicit coverage for the systems enabled by the engine |
-| P1 | Improve visual consistency | Refine portrait crops, golden frames, attachment indicators, hit readability, shadows, audio, and battle transitions. Apply reduced-motion support throughout combat and verify multiple viewport sizes |
+| P1 | Improve visual consistency | Make card-face text legible at small viewports (names, stats, tier and price are smaller than the former DOM badges, and shop cards shrink with distance), then refine faces, golden frames, attachment indicators, audio, and battle transitions. Verify reduced motion and multiple viewport sizes in a foreground browser |
 | P1 | Make artwork updates repeatable | Promote metadata discovery into a maintained command, report coverage by reachable content/type/version, fill missing official assets, and review changed hashes explicitly |
 | P2 | Add persistence and actual multiplayer | Introduce room and seat ownership, multiple human decisions, a per-game action queue, turn timing, reconnect/resume, per-seat views, and pushed snapshots. Verify concurrent human clients in one LAN game before Internet deployment |
 | P2 | Strengthen offline AI | Add composition and economy planning, target-aware evaluation, positioning, and difficulty policies. Evaluate against the current bot on fixed seeds using placement, latency, and illegal-action rates |
-| P3 | Choose delivery and distribution | Profile the existing renderer, decide whether richer 3D requires Three.js, and evaluate browser versus a desktop wrapper with a local Python sidecar. Build and verify native wheels for each target platform |
+| P3 | Choose delivery and distribution | Profile the WebGL renderer in a foreground browser (GPU time, frame pacing), and evaluate browser versus a desktop wrapper with a local Python sidecar. Build and verify native wheels for each target platform |
 
 LAN and Internet multiplayer are architectural work still to be implemented. Binding the present server to a network interface would expose the same seat-0 command service. Internet readiness additionally needs player identity/authorization, room isolation, transport security, lifecycle cleanup, and operational controls. A desktop build also needs a process lifecycle for the Python service, bundled assets and wheels, port management, and save locations.
 
-If Three.js is adopted, preserve the existing semantic API and authoritative snapshots. Map entity IDs to scene objects, use raycasting for interactions, and retain readable text/choices in an overlay where appropriate. Compare the result against the current CSS implementation's readability and frame time before committing to a full renderer migration.
+The one-off comparison against the former CSS renderer (commit `4ae870b`, same scenarios, 1280 × 720 and 960 × 540) found the following. The WebGL renderer used about 0.1 ms of CPU per frame on average (2.4 ms worst, when a face redraws) with 21–25 draw calls and under 1,000 triangles, and the page keeps about 64 DOM elements. The CSS renderer reached 107 elements and 16 concurrent animations in the same combat, and both played the `deathrattle` combat in about 10 seconds. Compositor and GPU time could not be measured because the test browser was a throttled background pane. Readability favours the CSS version for now: its official portraits and 23 px stat badges read better than the procedural faces, whose names and gems become hard to read at 960 × 540.
 
 The most useful next vertical slice is a combat with minion contact, a triggered effect, a deathrattle summon, hero resource changes, and final hero damage, all played from an ordered event stream. It should also survive interrupted playback and reconcile to the authoritative state.
 
