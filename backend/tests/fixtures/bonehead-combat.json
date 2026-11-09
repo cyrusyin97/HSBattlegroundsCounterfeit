@@ -1,0 +1,818 @@
+{
+  "a": 1,
+  "b": 0,
+  "damage": 2,
+  "frames": [
+    {
+      "attacks": [],
+      "boards": [
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 3,
+            "attached": [],
+            "base_atk": 2,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                2,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                1,
+                7
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3310,
+            "counter": 0,
+            "eid": 35,
+            "golden": false,
+            "golden_text": {
+              "text": "Divine Shield Windfury",
+              "text_zh": "圣盾，风怒"
+            },
+            "hp": 8,
+            "id": "BGS_119",
+            "implemented": true,
+            "keywords": [
+              "DIVINE_SHIELD",
+              "WINDFURY"
+            ],
+            "max_hp": 8,
+            "name": "Crackling Cyclone",
+            "name_zh": "爆裂飓风",
+            "pool_copies": 0,
+            "races": [
+              "ELEMENTAL"
+            ],
+            "shield_hits": 1,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "Divine Shield Windfury",
+            "text_zh": "圣盾，风怒",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ],
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                1,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                0
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 824,
+            "counter": 0,
+            "eid": 33,
+            "golden": false,
+            "golden_text": {
+              "text": "Deathrattle: Summon four 1/1 Skeletons.",
+              "text_zh": "亡语：召唤四个1/1的骷髅。"
+            },
+            "hp": 1,
+            "id": "BG28_300",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Harmless Bonehead",
+            "name_zh": "无害的骨颅",
+            "pool_copies": 0,
+            "races": [
+              "UNDEAD"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "Deathrattle: Summon two 1/1 Skeletons.",
+            "text_zh": "亡语：召唤两个1/1的骷髅。",
+            "tier": 1,
+            "triple_reward": false
+          },
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 3,
+            "breakdown": {
+              "base": [
+                1,
+                3
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                -2
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3261,
+            "counter": 0,
+            "eid": 34,
+            "golden": false,
+            "golden_text": {
+              "text": "After you play a Demon, deal 1 damage to your hero and gain +2/+2, twice.",
+              "text_zh": "在你使用一张恶魔牌后，对你的英雄造成1点伤害并获得+2/+2，触发两次。"
+            },
+            "hp": 1,
+            "id": "BGS_004",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Wrath Weaver",
+            "name_zh": "愤怒编织者",
+            "pool_copies": 0,
+            "races": [
+              "DEMON"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "After you play a Demon, deal 1 damage to your hero and gain +2/+2.",
+            "text_zh": "在你使用一张恶魔牌后，对你的英雄造成1点伤害并获得+2/+2。",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ]
+      ],
+      "log": []
+    },
+    {
+      "attacks": [],
+      "boards": [
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 3,
+            "attached": [],
+            "base_atk": 2,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                2,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                1,
+                7
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3310,
+            "counter": 0,
+            "eid": 35,
+            "golden": false,
+            "golden_text": {
+              "text": "Divine Shield Windfury",
+              "text_zh": "圣盾，风怒"
+            },
+            "hp": 8,
+            "id": "BGS_119",
+            "implemented": true,
+            "keywords": [
+              "DIVINE_SHIELD",
+              "WINDFURY"
+            ],
+            "max_hp": 8,
+            "name": "Crackling Cyclone",
+            "name_zh": "爆裂飓风",
+            "pool_copies": 0,
+            "races": [
+              "ELEMENTAL"
+            ],
+            "shield_hits": 1,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "Divine Shield Windfury",
+            "text_zh": "圣盾，风怒",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ],
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                1,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                0
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 824,
+            "counter": 0,
+            "eid": 33,
+            "golden": false,
+            "golden_text": {
+              "text": "Deathrattle: Summon four 1/1 Skeletons.",
+              "text_zh": "亡语：召唤四个1/1的骷髅。"
+            },
+            "hp": 1,
+            "id": "BG28_300",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Harmless Bonehead",
+            "name_zh": "无害的骨颅",
+            "pool_copies": 0,
+            "races": [
+              "UNDEAD"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "Deathrattle: Summon two 1/1 Skeletons.",
+            "text_zh": "亡语：召唤两个1/1的骷髅。",
+            "tier": 1,
+            "triple_reward": false
+          },
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 3,
+            "breakdown": {
+              "base": [
+                1,
+                3
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                -2
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3261,
+            "counter": 0,
+            "eid": 34,
+            "golden": false,
+            "golden_text": {
+              "text": "After you play a Demon, deal 1 damage to your hero and gain +2/+2, twice.",
+              "text_zh": "在你使用一张恶魔牌后，对你的英雄造成1点伤害并获得+2/+2，触发两次。"
+            },
+            "hp": 1,
+            "id": "BGS_004",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Wrath Weaver",
+            "name_zh": "愤怒编织者",
+            "pool_copies": 0,
+            "races": [
+              "DEMON"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "After you play a Demon, deal 1 damage to your hero and gain +2/+2.",
+            "text_zh": "在你使用一张恶魔牌后，对你的英雄造成1点伤害并获得+2/+2。",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ]
+      ],
+      "log": []
+    },
+    {
+      "attacks": [
+        [
+          33,
+          35
+        ]
+      ],
+      "boards": [
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 3,
+            "attached": [],
+            "base_atk": 2,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                2,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                1,
+                7
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3310,
+            "counter": 0,
+            "eid": 35,
+            "golden": false,
+            "golden_text": {
+              "text": "Divine Shield Windfury",
+              "text_zh": "圣盾，风怒"
+            },
+            "hp": 8,
+            "id": "BGS_119",
+            "implemented": true,
+            "keywords": [
+              "WINDFURY"
+            ],
+            "max_hp": 8,
+            "name": "Crackling Cyclone",
+            "name_zh": "爆裂飓风",
+            "pool_copies": 0,
+            "races": [
+              "ELEMENTAL"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "Divine Shield Windfury",
+            "text_zh": "圣盾，风怒",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ],
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                1,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                0
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3416,
+            "counter": 0,
+            "eid": 36,
+            "golden": false,
+            "golden_text": {
+              "text": "",
+              "text_zh": ""
+            },
+            "hp": 1,
+            "id": "BG_ICC_026t",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Skeleton",
+            "name_zh": "骷髅",
+            "pool_copies": 0,
+            "races": [
+              "UNDEAD"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "",
+            "text_zh": "",
+            "tier": 1,
+            "triple_reward": false
+          },
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                1,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                0
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3416,
+            "counter": 0,
+            "eid": 37,
+            "golden": false,
+            "golden_text": {
+              "text": "",
+              "text_zh": ""
+            },
+            "hp": 1,
+            "id": "BG_ICC_026t",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Skeleton",
+            "name_zh": "骷髅",
+            "pool_copies": 0,
+            "races": [
+              "UNDEAD"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "",
+            "text_zh": "",
+            "tier": 1,
+            "triple_reward": false
+          },
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 3,
+            "breakdown": {
+              "base": [
+                1,
+                3
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                -2
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3261,
+            "counter": 0,
+            "eid": 34,
+            "golden": false,
+            "golden_text": {
+              "text": "After you play a Demon, deal 1 damage to your hero and gain +2/+2, twice.",
+              "text_zh": "在你使用一张恶魔牌后，对你的英雄造成1点伤害并获得+2/+2，触发两次。"
+            },
+            "hp": 1,
+            "id": "BGS_004",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Wrath Weaver",
+            "name_zh": "愤怒编织者",
+            "pool_copies": 0,
+            "races": [
+              "DEMON"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "After you play a Demon, deal 1 damage to your hero and gain +2/+2.",
+            "text_zh": "在你使用一张恶魔牌后，对你的英雄造成1点伤害并获得+2/+2。",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ]
+      ],
+      "log": [
+        "[t1] p0's Harmless Bonehead attacks Crackling Cyclone",
+        "[t1] p0's Harmless Bonehead dies",
+        "[t1] p0 summons Skeleton at 0",
+        "[t1] p0 summons Skeleton at 1"
+      ]
+    },
+    {
+      "attacks": [
+        [
+          35,
+          34
+        ],
+        [
+          35,
+          37
+        ]
+      ],
+      "boards": [
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 3,
+            "attached": [],
+            "base_atk": 2,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                2,
+                1
+              ],
+              "damage": 2,
+              "mods": [],
+              "other": [
+                1,
+                7
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3310,
+            "counter": 0,
+            "eid": 35,
+            "golden": false,
+            "golden_text": {
+              "text": "Divine Shield Windfury",
+              "text_zh": "圣盾，风怒"
+            },
+            "hp": 6,
+            "id": "BGS_119",
+            "implemented": true,
+            "keywords": [
+              "WINDFURY"
+            ],
+            "max_hp": 8,
+            "name": "Crackling Cyclone",
+            "name_zh": "爆裂飓风",
+            "pool_copies": 0,
+            "races": [
+              "ELEMENTAL"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "Divine Shield Windfury",
+            "text_zh": "圣盾，风怒",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ],
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 1,
+            "attached": [],
+            "base_atk": 1,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                1,
+                1
+              ],
+              "damage": 0,
+              "mods": [],
+              "other": [
+                0,
+                0
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3416,
+            "counter": 0,
+            "eid": 36,
+            "golden": false,
+            "golden_text": {
+              "text": "",
+              "text_zh": ""
+            },
+            "hp": 1,
+            "id": "BG_ICC_026t",
+            "implemented": true,
+            "keywords": [],
+            "max_hp": 1,
+            "name": "Skeleton",
+            "name_zh": "骷髅",
+            "pool_copies": 0,
+            "races": [
+              "UNDEAD"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "",
+            "text_zh": "",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ]
+      ],
+      "log": [
+        "[t1] p1's Crackling Cyclone attacks Wrath Weaver",
+        "[t1] p0's Wrath Weaver dies",
+        "[t1] p1's Crackling Cyclone attacks Skeleton",
+        "[t1] p0's Skeleton dies"
+      ]
+    },
+    {
+      "attacks": [
+        [
+          36,
+          35
+        ]
+      ],
+      "boards": [
+        [
+          {
+            "activate_cost": null,
+            "activations": 0,
+            "atk": 3,
+            "attached": [],
+            "base_atk": 2,
+            "base_hp": 1,
+            "breakdown": {
+              "base": [
+                2,
+                1
+              ],
+              "damage": 3,
+              "mods": [],
+              "other": [
+                1,
+                7
+              ],
+              "temporary": [
+                0,
+                0
+              ],
+              "this_game_bonus": [
+                0,
+                0
+              ]
+            },
+            "cid": 3310,
+            "counter": 0,
+            "eid": 35,
+            "golden": false,
+            "golden_text": {
+              "text": "Divine Shield Windfury",
+              "text_zh": "圣盾，风怒"
+            },
+            "hp": 5,
+            "id": "BGS_119",
+            "implemented": true,
+            "keywords": [
+              "WINDFURY"
+            ],
+            "max_hp": 8,
+            "name": "Crackling Cyclone",
+            "name_zh": "爆裂飓风",
+            "pool_copies": 0,
+            "races": [
+              "ELEMENTAL"
+            ],
+            "shield_hits": 0,
+            "shield_max": 1,
+            "temp_atk": 0,
+            "temp_hp": 0,
+            "text": "Divine Shield Windfury",
+            "text_zh": "圣盾，风怒",
+            "tier": 1,
+            "triple_reward": false
+          }
+        ],
+        []
+      ],
+      "log": [
+        "[t1] p0's Skeleton attacks Crackling Cyclone",
+        "[t1] p0's Skeleton dies"
+      ]
+    }
+  ],
+  "truncated": false,
+  "turn": 1,
+  "winner": 0
+}

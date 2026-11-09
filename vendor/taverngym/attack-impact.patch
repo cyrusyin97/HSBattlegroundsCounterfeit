@@ -1,0 +1,215 @@
+--- a/crates/taverngym/src/engine.rs
++++ b/crates/taverngym/src/engine.rs
+@@ -55,9 +55,33 @@
+     pub winner: u8,
+     pub damage: i32,
+     pub truncated: bool,
++    /// Hero state immediately before and after combat damage and its reactions.
++    #[serde(default)]
++    pub heroes_before: [Option<CombatHero>; 2],
++    #[serde(default)]
++    pub heroes_after: [Option<CombatHero>; 2],
+     /// Replay frames (only recorded when `cfg.record_log`).
+     #[serde(default)]
+     pub frames: Vec<CombatFrame>,
++}
++
++#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
++pub struct CombatHero {
++    pub hero: Option<CardId>,
++    pub health: i32,
++    pub armor: i32,
++    pub tier: u8,
++}
++
++impl From<&Player> for CombatHero {
++    fn from(player: &Player) -> Self {
++        Self {
++            hero: player.hero,
++            health: player.health,
++            armor: player.armor,
++            tier: player.tier,
++        }
++    }
+ }
+ 
+ /// One replay step: log lines since the previous frame and both boards afterwards.
+@@ -68,6 +92,25 @@
+     /// Attacks made since the previous frame: (attacker, defender), for the replay.
+     #[serde(default)]
+     pub attacks: Vec<(EntityId, EntityId)>,
++    #[serde(default)]
++    pub impacts: Vec<AttackImpact>,
++}
++
++#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
++pub struct AttackImpact {
++    pub from: EntityId,
++    pub to: EntityId,
++    pub hits: Vec<ContactHit>,
++}
++
++#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
++pub struct ContactHit {
++    pub target: EntityId,
++    pub damage: i32,
++    pub hp: i32,
++    pub shield_hits: u8,
++    pub absorbed: bool,
++    pub lethal: bool,
+ }
+ 
+ #[derive(Clone, Debug, Serialize, Deserialize)]
+@@ -587,6 +630,7 @@
+     pub storm_offer: bool,
+     frame_log_start: usize,
+     /// Attacks since the last replay frame (combat with logging only).
++    pub frame_impacts: Vec<AttackImpact>,
+     pub frame_attacks: Vec<(EntityId, EntityId)>,
+     /// Lowest stack address this context's calls may reach, and the last entry points
+     /// entered with the number entered (`guard`).
+@@ -612,6 +656,7 @@
+             depth: 0,
+             frames: Vec::new(),
+             frame_log_start,
++            frame_impacts: Vec::new(),
+             frame_attacks: Vec::new(),
+             src: None,
+             cast_src: 0,
+@@ -678,6 +723,7 @@
+         let attacks = std::mem::take(&mut self.frame_attacks);
+         self.frames.push(CombatFrame {
+             log,
++            impacts: std::mem::take(&mut self.frame_impacts),
+             attacks,
+             boards: [self.boards[0].clone(), self.boards[1].clone()],
+         });
+--- a/crates/taverngym/src/combat.rs
++++ b/crates/taverngym/src/combat.rs
+@@ -7,7 +7,7 @@
+ //! Reborn, Avenge after every attack -> end when a side is empty or nobody can attack. Survivors'
+ //! tiers + winner tier = hero damage.
+ 
+-use crate::engine::{CombatRecord, Ctx, Game};
++use crate::engine::{CombatHero, CombatRecord, Ctx, Game};
+ use crate::event::Event;
+ use crate::script::{Me, flag, script};
+ use crate::state::Minion;
+@@ -134,6 +134,7 @@
+ 
+     /// Apply a combat result to heroes and record it.
+     pub fn apply_combat_result(&mut self, a: PlayerId, b: Option<PlayerId>, out: CombatOutcome) {
++        let heroes_before = [Some(a), b].map(|p| p.map(|p| CombatHero::from(&self.players[p])));
+         let alive = match self.turn_alive {
+             0 => self.alive_count(),
+             n => n,
+@@ -203,6 +204,8 @@
+             winner: out.winner,
+             damage: if out.winner == 2 { 0 } else { dmg },
+             truncated: out.truncated,
++            heroes_before,
++            heroes_after: [Some(a), b].map(|p| p.map(|p| CombatHero::from(&self.players[p]))),
+             frames: std::mem::take(&mut self.last_frames),
+         });
+     }
+@@ -579,6 +582,32 @@
+     }
+ }
+ 
++/// Record the immediate result before deferred damage triggers or death processing.
++fn contact_damage(
++    ctx: &mut Ctx,
++    source: EntityId,
++    target: EntityId,
++    amount: i32,
++    impact: &mut Option<crate::engine::AttackImpact>,
++) -> i32 {
++    let shield = impact
++        .as_ref()
++        .and_then(|_| ctx.minion(target))
++        .map(|m| m.shield_hits);
++    let damage = ctx.damage(source, target, amount);
++    if let (Some(impact), Some(shield), Some(m)) = (impact, shield, ctx.minion(target)) {
++        impact.hits.push(crate::engine::ContactHit {
++            target,
++            damage,
++            hp: m.hp,
++            shield_hits: m.shield_hits,
++            absorbed: m.shield_hits < shield,
++            lethal: !m.alive(),
++        });
++    }
++    damage
++}
++
+ /// Resolve one attack: Stealth drops, Rally and "whenever attacks" triggers fire, then both
+ /// minions deal damage simultaneously (Cleave also hits the defender's neighbours).
+ pub fn do_attack(ctx: &mut Ctx, side: Side, attacker: EntityId, defender: EntityId) {
+@@ -636,9 +665,14 @@
+     ctx.defer_hits = true;
+     let venom = ctx.minion(attacker).is_some_and(|m| m.has(Kw::VENOMOUS));
+     ctx.keep_venom = cleave && venom;
+-    let mut dealt = ctx.damage(attacker, defender, atk_a);
++    let mut impact = ctx.g.cfg.record_log.then(|| crate::engine::AttackImpact {
++        from: attacker,
++        to: defender,
++        hits: Vec::new(),
++    });
++    let mut dealt = contact_damage(ctx, attacker, defender, atk_a, &mut impact);
+     for n in splash {
+-        dealt = dealt.saturating_add(ctx.damage(attacker, n, atk_a));
++        dealt = dealt.saturating_add(contact_damage(ctx, attacker, n, atk_a, &mut impact));
+     }
+     if ctx.keep_venom {
+         ctx.keep_venom = false;
+@@ -649,7 +683,10 @@
+         }
+     }
+     if !immune_attacking {
+-        ctx.damage(defender, attacker, atk_d);
++        contact_damage(ctx, defender, attacker, atk_d, &mut impact);
++    }
++    if let Some(impact) = impact {
++        ctx.frame_impacts.push(impact);
+     }
+     ctx.defer_hits = false;
+     ctx.flush_deferred();
+--- a/crates/taverngym/src/debug.rs
++++ b/crates/taverngym/src/debug.rs
+@@ -589,9 +589,16 @@
+         "winner": r.winner,
+         "damage": r.damage,
+         "truncated": r.truncated,
++        "heroes_before": r.heroes_before.each_ref().map(|h| h.as_ref().map(|h| json!({
++            "hero": h.hero.map(card_json), "health": h.health, "armor": h.armor, "tier": h.tier
++        }))),
++        "heroes_after": r.heroes_after.each_ref().map(|h| h.as_ref().map(|h| json!({
++            "hero": h.hero.map(card_json), "health": h.health, "armor": h.armor, "tier": h.tier
++        }))),
+         "frames": r.frames.iter().map(|f| json!({
+             "log": f.log,
+             "attacks": f.attacks,
++            "impacts": f.impacts,
+             "boards": [
+                 f.boards[0].iter().map(minion_json).collect::<Vec<_>>(),
+                 f.boards[1].iter().map(minion_json).collect::<Vec<_>>(),
+@@ -1665,6 +1672,8 @@
+                         winner: out.winner,
+                         damage: out.damage,
+                         truncated: out.truncated,
++                        heroes_before: [None, None],
++                        heroes_after: [None, None],
+                         frames: std::mem::take(&mut c.last_frames),
+                     };
+                     sample = combat_json(&rec);
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -4,7 +4,7 @@
+ 
+ [project]
+ name = "taverngym"
+-version = "1.0.0"
++version = "1.0.0+impact2"
+ description = "TavernGym: a Hearthstone Battlegrounds solo-mode simulator with a reinforcement-learning interface"
+ readme = "README.md"
+ requires-python = ">=3.10"

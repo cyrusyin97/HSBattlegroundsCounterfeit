@@ -1,0 +1,12 @@
+{
+  "name": "clone-battlegrounds",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "check:frontend": "npm run check --workspace frontend",
+    "test:frontend": "npm run test --workspace frontend"
+  }
+}

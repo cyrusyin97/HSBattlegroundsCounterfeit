@@ -1,0 +1,13 @@
+.DS_Store
+.venv/
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+work/
+frontend/public/assets/official/

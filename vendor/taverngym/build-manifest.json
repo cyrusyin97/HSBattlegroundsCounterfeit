@@ -1,0 +1,24 @@
+{
+  "repository": "https://github.com/MCG-NJU/AutoTavern",
+  "commit": "fb61201a557ddd36a411cf44aac51ce4d9b606ce",
+  "package_version": "1.0.0",
+  "game_version": "36.6.3.253932",
+  "server_rules": "36.6.3",
+  "source_hash": "c807e9aa1a6746ee",
+  "platform": "macOS 15.7.3 arm64",
+  "python": "3.11.15",
+  "rust": "1.98.1",
+  "wheel": "../wheels/taverngym-1.0.0-cp310-abi3-macosx_11_0_arm64.whl",
+  "wheel_sha256": "af76706cc39bee2e3217eb1386eb43b569c2092cef73235f5c55462245042acd",
+  "rust_tests_passed": 858,
+  "python_tests_passed": 46,
+  "isolated_games": 20,
+  "isolated_truncated_combats": 0,
+  "local_replay_build": {
+    "package_version": "1.0.0+impact2",
+    "patch": "attack-impact.patch",
+    "source_hash": "ed272c64fc36aeea",
+    "wheel": "../wheels/taverngym-1.0.0+impact2-cp310-abi3-macosx_11_0_arm64.whl",
+    "wheel_sha256": "e3dadf8ffd2d82e04cbe4645de8683d9f8bdd1f7622803765c42657f6345efce"
+  }
+}
