@@ -94,7 +94,9 @@ export function createThreeView(host: ViewHost): CardView {
       const pos = stage.boardToWorld(spots[i].x, spots[i].y + sink, kit.centerY);
       // Later hand cards sit slightly in front so overlapping faces never z-fight.
       if (zone === 'hand') pos.addScaledVector(kit.normal, i * 0.03);
-      cards.get(p.key)?.setRest(pos, spots[i].roll, zone === 'hand' ? HAND_SCALE : 1);
+      // Distance shrinks the shop row; scale it back so its text reads like the warband's.
+      const scale = zone === 'hand' ? HAND_SCALE : zone === 'shop' ? kit.scaleAt(spots[i].y) : 1;
+      cards.get(p.key)?.setRest(pos, spots[i].roll, scale);
     });
   }
 

@@ -27,12 +27,14 @@ export class CardKit {
   /** A clear block a little larger than the card, worn while its shop slot is frozen. */
   readonly ice: THREE.ExtrudeGeometry;
   readonly shadowTexture: THREE.CanvasTexture;
+  /** World units per board pixel on the warband row, where cards have their nominal size. */
+  private readonly perPixel: number;
   readonly bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x7a5530, metalness: 0.45, roughness: 0.45 });
 
   constructor(readonly stage: Stage) {
     // Size cards so a warband card covers the same 116 × 148 board pixels as the DOM token.
-    const a = stage.boardToWorld(720, 491), b = stage.boardToWorld(820, 491);
-    const perPixel = a.distanceTo(b) / 100;
+    const a = stage.boardToWorld(720, 491);
+    const perPixel = this.perPixel = worldPerPixel(stage, 491);
     this.width = 116 * perPixel;
     this.height = 148 * perPixel;
     this.depth = 0.05;
@@ -62,6 +64,13 @@ export class CardKit {
     this.shadow.rotateX(-Math.PI / 2);
     this.shadowTexture = radialTexture();
   }
+
+  /** Scale that makes a card on board row `y` look as large as one on the warband row. */
+  scaleAt(y: number) { return worldPerPixel(this.stage, y) / this.perPixel; }
+}
+
+function worldPerPixel(stage: Stage, y: number) {
+  return stage.boardToWorld(720, y).distanceTo(stage.boardToWorld(820, y)) / 100;
 }
 
 interface Pose { pos: THREE.Vector3; roll: number; scale: number }
@@ -268,41 +277,57 @@ function drawFace(canvas: HTMLCanvasElement, f: Face) {
   g.fill();
   g.clip();
 
+  // Sizes are in 256ths of the card width. At a 960 × 540 window a warband card is
+  // about 80 px wide, so one unit is about 0.31 px: names ~11 px, stats ~15 px.
   // Emblem: an oval for minions, a diamond for spells, holding the name's first glyph.
-  const cx = w / 2, cy = h * 0.4;
+  const cx = w / 2, cy = 118 * u;
   g.beginPath();
   if (f.spell) {
-    g.moveTo(cx, cy - 86 * u); g.lineTo(cx + 72 * u, cy); g.lineTo(cx, cy + 86 * u); g.lineTo(cx - 72 * u, cy); g.closePath();
+    g.moveTo(cx, cy - 60 * u); g.lineTo(cx + 52 * u, cy); g.lineTo(cx, cy + 60 * u); g.lineTo(cx - 52 * u, cy); g.closePath();
   } else {
-    g.ellipse(cx, cy, 78 * u, 94 * u, 0, 0, Math.PI * 2);
+    g.ellipse(cx, cy, 50 * u, 58 * u, 0, 0, Math.PI * 2);
   }
-  const glow = g.createRadialGradient(cx, cy - 30 * u, 10 * u, cx, cy, 100 * u);
+  const glow = g.createRadialGradient(cx, cy - 20 * u, 8 * u, cx, cy, 64 * u);
   glow.addColorStop(0, `hsl(${base} 55% 58%)`);
   glow.addColorStop(1, `hsl(${base} 45% 22%)`);
   g.fillStyle = glow;
   g.fill();
-  g.lineWidth = 5 * u;
+  g.lineWidth = 4 * u;
   g.strokeStyle = '#e6c98a';
   g.stroke();
   g.fillStyle = 'rgba(255,241,214,.92)';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = font(92);
-  g.fillText([...f.name][0] ?? '?', cx, cy + 4 * u);
+  g.font = font(60);
+  g.fillText([...f.name][0] ?? '?', cx, cy + 3 * u);
 
-  // Name band.
-  const band = h * 0.73;
-  g.fillStyle = 'rgba(18,9,5,.7)';
-  g.fillRect(0, band - 22 * u, w, 44 * u);
-  let size = 26;
-  g.font = font(size);
-  while (size > 14 && g.measureText(f.name).width > w - 30 * u) g.font = font(--size);
+  // Name band: one line when it fits, otherwise two balanced lines.
+  const top = 180 * u, bottom = 252 * u;
+  g.fillStyle = 'rgba(18,9,5,.78)';
+  g.fillRect(0, top, w, bottom - top);
+  const room = w - 24 * u;
+  const fit = (text: string, max: number, min: number) => {
+    let size = max;
+    g.font = font(size);
+    while (size > min && g.measureText(text).width > room) g.font = font(--size);
+    return size;
+  };
+  const glyphs = [...f.name];
   g.fillStyle = '#ffe8b3';
-  g.fillText(f.name, cx, band);
+  fit(f.name, 40, 34);
+  if (g.measureText(f.name).width <= room) {
+    g.fillText(f.name, cx, (top + bottom) / 2);
+  } else {
+    const half = Math.ceil(glyphs.length / 2);
+    const lines = [glyphs.slice(0, half).join(''), glyphs.slice(half).join('')];
+    const size = Math.min(...lines.map(line => fit(line, 34, 20)));
+    g.font = font(size);
+    lines.forEach((line, i) => g.fillText(line, cx, (top + bottom) / 2 + (i - 0.5) * size * 1.05 * u));
+  }
   if (f.spell) {
-    g.font = font(16, '600');
+    g.font = font(26, '600');
     g.fillStyle = '#d9c3ff';
-    g.fillText('法术', cx, band + 38 * u);
+    g.fillText('法术', cx, 288 * u);
   }
 
   if (f.frozen) {
@@ -311,8 +336,8 @@ function drawFace(canvas: HTMLCanvasElement, f: Face) {
     g.strokeStyle = 'rgba(240,252,255,.8)';
     g.lineWidth = 3 * u;
     g.beginPath();
-    g.moveTo(30 * u, 40 * u); g.lineTo(90 * u, 110 * u); g.lineTo(70 * u, 170 * u);
-    g.moveTo(w - 40 * u, h - 90 * u); g.lineTo(w - 100 * u, h - 150 * u); g.lineTo(w - 80 * u, h - 210 * u);
+    g.moveTo(30 * u, 80 * u); g.lineTo(80 * u, 130 * u); g.lineTo(64 * u, 170 * u);
+    g.moveTo(w - 40 * u, h - 110 * u); g.lineTo(w - 90 * u, h - 150 * u); g.lineTo(w - 76 * u, h - 190 * u);
     g.stroke();
   }
   g.restore();
@@ -331,16 +356,20 @@ function drawFace(canvas: HTMLCanvasElement, f: Face) {
     g.strokeStyle = '#f1dcae';
     g.stroke();
     g.font = `bold ${size * u}px Georgia,serif`;
-    g.lineWidth = 5 * u;
-    g.strokeStyle = 'rgba(0,0,0,.75)';
+    // Shrink two-digit and prefixed values to stay inside the gem.
+    const scale = Math.min(1, (r * 1.7 * u) / g.measureText(text).width);
+    g.font = `bold ${size * scale * u}px Georgia,serif`;
+    g.lineWidth = 6 * u;
+    g.strokeStyle = 'rgba(0,0,0,.8)';
     g.strokeText(text, x, y + 2 * u);
     g.fillStyle = '#fff';
     g.fillText(text, x, y + 2 * u);
   };
-  if (f.atk !== undefined) gem(36 * u, h - 38 * u, 30, '#b88a2c', String(f.atk), 34);
-  if (f.hp !== undefined) gem(w - 36 * u, h - 38 * u, 30, '#aa3732', String(f.hp), 34);
-  if (f.tier) gem(32 * u, 32 * u, 22, '#703177', '★' + f.tier, 17);
-  if (f.price !== undefined) gem(w - 32 * u, 32 * u, 22, '#967019', (f.costsHealth ? '♥' : '') + (f.price ?? '–'), 20);
+  const low = h - 38 * u;
+  if (f.atk !== undefined) gem(38 * u, low, 36, '#b88a2c', String(f.atk), 50);
+  if (f.hp !== undefined) gem(w - 38 * u, low, 36, '#aa3732', String(f.hp), 50);
+  if (f.tier) gem(36 * u, 36 * u, 31, '#703177', '★' + f.tier, 34);
+  if (f.price !== undefined) gem(w - 36 * u, 36 * u, 31, '#967019', (f.costsHealth ? '♥' : '') + (f.price ?? '–'), 38);
 }
 
 function roundPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
