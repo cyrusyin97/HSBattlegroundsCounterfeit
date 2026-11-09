@@ -108,7 +108,7 @@ function render(transition?: Transition) {
   }
   if (me.pending?.kind === 'target') {
     const casting = me.hand.find(c=>c.hid===me.casting) ?? spell;
-    message([casting?.name_zh,casting?.text_zh,'请选择目标'].filter(Boolean).join('　'));
+    message([casting?.name_zh,casting?.text_zh,'请选择目标 · 右键取消'].filter(Boolean).join('　'));
   } else {
     spell=undefined;
     message(!me.alive || phase==='game_over' ? '对局结束 · 第 '+ me.placement +' 名' : '拖入手牌购买 · 拖至战团出牌 · 拖回酒馆出售');
@@ -119,6 +119,8 @@ document.addEventListener('pointermove', e => {
   const p = localPoint(e.clientX,e.clientY); drawArrow(p.x,p.y);
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape' && snapshot && !busy){const a=match('cancel');if(a)void commit(a);}});
+// Right-click cancels a pending choice such as spell targeting; the table never shows a context menu.
+table.addEventListener('contextmenu',e=>{e.preventDefault();if(snapshot && !busy){const a=match('cancel');if(a)void commit(a);}});
 async function start() {
   if(busy)return;
   lock(true); message('酒馆准备中…');

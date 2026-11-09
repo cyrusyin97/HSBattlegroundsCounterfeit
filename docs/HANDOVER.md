@@ -192,9 +192,10 @@ Implemented interactions include the following.
 - Open a gap in the warband at the insertion point and highlight the valid drop zone during drag.
 - Reorder friendly minions by dragging them along the board.
 - Sell by dragging a friendly minion back into the shop row.
-- Cast spells through the hand interaction, then select a legal target when the engine opens a targeting decision.
+- Cast spells through the hand interaction, then select a legal target when the engine opens a targeting decision. Dragging a targeted spell out of the hand casts it at once and turns the drag into the targeting arrow: release on a legal target to apply it, release back over the hand to cancel, or release elsewhere and click a target. The snapshot marks hand spells `targeted` (the server casts each castable spell on a throwaway copy to find out, since the engine has no static targeting flag).
 - Draw a curved SVG targeting arrow from the cast card and outline eligible card entities (green, gold under the pointer).
-- Cancel a cancellable decision with the button or Escape.
+- Cancel a cancellable decision with the button, Escape, or a right-click on the table.
+- Show keyword effects on cards: an iron bulwark with a gold rim behind Taunt minions, a pulsing golden shell for Divine Shield, drifting smoke over Stealth faces, and face marks for Deathrattle (亡), Windfury (风), Reborn (生), Venomous/Poisonous (毒) and Cleave (溅). Runtime engine flags drive these, except Deathrattle, which is read from the printed `text` (`core/traits.ts`). Hand cards show marks only.
 - Render hero-power controls, minion activation through card interaction, and the Dark Gift button when legal.
 - Display generic hero-selection and discover/choice options from the engine's pending decision.
 - Refresh, freeze/thaw, upgrade, and end the turn through engine-priced controls.

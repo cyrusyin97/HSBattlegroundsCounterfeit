@@ -15,7 +15,13 @@ export interface Card {
   id: string;
   name_zh: string;
   text_zh: string;
+  /** English rules text; marks such as Deathrattle are read from it. */
+  text?: string;
   type?: string;
+  /** Engine keyword flags in effect now, such as TAUNT or REBORN. */
+  keywords?: string[] | null;
+  /** On hand spells: casting opens a target choice. */
+  targeted?: boolean;
   tier?: number;
   eid?: number;
   shield_hits?: number;

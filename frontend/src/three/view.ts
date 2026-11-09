@@ -55,7 +55,11 @@ export function createThreeView(host: ViewHost): CardView {
     Object.assign(window, { three: { stage, cards } });
   }
   let hover: CardObject | undefined;
-  let drag: { obj: CardObject; pointer: number; x: number; y: number; version: number; active: boolean; action?: Action } | undefined;
+  /** `aiming`: a targeted spell left the hand, so the gesture now picks its target. */
+  let drag: {
+    obj: CardObject; pointer: number; x: number; y: number; version: number;
+    active: boolean; aiming?: boolean; action?: Action;
+  } | undefined;
 
   const discard = (obj: CardObject) => {
     root.remove(obj.root, obj.shadow);
@@ -139,14 +143,26 @@ export function createThreeView(host: ViewHost): CardView {
 
   function dragTo(x: number, y: number) {
     const d = drag!;
+    // The board controller draws the arrow; the view lights the target under the pointer.
+    if (d.aiming) return setHover(pick(x, y));
     if (host.snapshot.state.me.pending?.kind === 'target') return;
     if (!d.active) {
       if (Math.hypot(x - d.x, y - d.y) < 6) return;
       d.active = true;
       setHover(undefined);
     }
-    d.obj.hold(stage.boardToWorld(x, y, kit.centerY + DRAG_LIFT));
     const source = placed.get(d.obj.key)!;
+    const cast = source.zone === 'hand' && source.card.targeted && zoneAt(x, y) !== 'hand'
+      ? matchAction(host.snapshot, 'cast', { hand_id: source.id }) : undefined;
+    if (cast) {
+      // Leaving the hand casts at once; the card returns and the arrow takes over.
+      d.aiming = true;
+      d.obj.hold(undefined);
+      for (const z of ZONE_LIST) marks[z].visible = false;
+      layout();
+      return void send(cast);
+    }
+    d.obj.hold(stage.boardToWorld(x, y, kit.centerY + DRAG_LIFT));
     const board = zoneCards('board');
     const base = slots('board', board.length);
     const centers = board.flatMap((p, i) => p.key === source.key ? [] : [base[i].x]);
@@ -166,9 +182,10 @@ export function createThreeView(host: ViewHost): CardView {
 
   function release(e: PointerEvent, cancel: boolean) {
     if (!drag || drag.pointer !== e.pointerId) return;
-    const { obj, active, version, action } = drag;
+    const { obj, active, aiming, version, action } = drag;
     drag = undefined;
     for (const z of ZONE_LIST) marks[z].visible = false;
+    if (aiming) return aim(e, cancel);
     const valid = !cancel && !host.busy && version === host.snapshot.version;
     if (!active) {
       const p = localPoint(e.clientX, e.clientY);
@@ -182,6 +199,20 @@ export function createThreeView(host: ViewHost): CardView {
     obj.hold(undefined);
     layout();
     host.message('无法放置，已返回原位');
+  }
+
+  /**
+   * Ends an aiming drag: over a legal target it casts there, back over the hand it
+   * cancels, and anywhere else the arrow stays for a click (right-click cancels).
+   */
+  function aim(e: PointerEvent, cancel: boolean) {
+    if (cancel || host.busy || host.snapshot.state.me.pending?.kind !== 'target') return;
+    const p = localPoint(e.clientX, e.clientY);
+    const back = zoneAt(p.x, p.y) === 'hand' ? matchAction(host.snapshot, 'cancel') : undefined;
+    const obj = pick(p.x, p.y), ref = obj && placed.get(obj.key);
+    const target = ref ? resolveTap(host.snapshot, ref) : undefined;
+    const action = back ?? (target?.kind === 'target' ? target : undefined);
+    if (action) void send(action);
   }
 
   canvas.addEventListener('pointerdown', e => {

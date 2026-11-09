@@ -60,6 +60,8 @@ def test_recruit(start):
 def test_target(start):
     snapshot = start("target")
     bone, = snapshot["state"]["me"]["board"]
+    spell, = snapshot["state"]["me"]["hand"]
+    assert spell["targeted"] is True
     choosing = step(snapshot, "cast")
     assert choosing["state"]["me"]["pending"]["kind"] == "target"
     resolved = step(choosing, "target", target_id=bone["eid"])
@@ -71,7 +73,10 @@ def test_triple(start):
     bought = buy(start("triple"), "BGS_004")
     golden, = bought["state"]["me"]["hand"]
     assert golden["id"] == "TB_BaconUps_079"
-    choosing = step(step(bought, "play"), "cast")
+    played = step(bought, "play")
+    reward = next(c for c in played["state"]["me"]["hand"] if c["type"] == "spell")
+    assert reward["targeted"] is False  # It opens a discover, not a target.
+    choosing = step(played, "cast")
     pending = choosing["state"]["me"]["pending"]
     assert pending["kind"] == "discover" and len(pending["options"]) == 3
     resolved = step(choosing, "choose", option=0)

@@ -84,6 +84,27 @@ def semantic_actions(view):
     return result
 
 
+def targeted_spells(game, legal):
+    """Hand IDs whose cast opens a target choice, found by casting on a throwaway copy.
+
+    The engine has no static targeting flag, so the client cannot know in advance whether
+    dragging a spell should turn into a targeting arrow.
+    """
+    found = set()
+    for index, action in legal.items():
+        if action["kind"] != "cast":
+            continue
+        trial = game.copy()
+        try:
+            trial.step(0, index)
+        except ValueError:
+            continue
+        pending = json.loads(trial.view(0))["me"].get("pending")
+        if pending and pending.get("kind") == "target":
+            found.add(action["hand_id"])
+    return found
+
+
 def player_snapshot(game, game_id, version):
     raw = json.loads(game.view(0))  # Debug view also contains private data of the other seats.
     legal = semantic_actions(raw)
@@ -101,7 +122,12 @@ def player_snapshot(game, game_id, version):
         combat["frames"] = [select(frame, "boards attacks impacts") for frame in combat["frames"]]
         combat = visible_cards(combat)
     state["me"]["dark_gift"] = select(state["me"]["dark_gift"], "available uses max_uses cost unlock_turn")
-    return ({"game_id": game_id, "version": version, "state": visible_cards(state),
+    state = visible_cards(state)
+    aimed = targeted_spells(game, legal)
+    for card in state["me"]["hand"]:
+        if card.get("type") == "spell":
+            card["targeted"] = card["hid"] in aimed
+    return ({"game_id": game_id, "version": version, "state": state,
              "legal_actions": list(legal.values()), "combat": combat}, legal)
 
 
