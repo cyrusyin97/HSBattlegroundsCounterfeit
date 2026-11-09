@@ -22,6 +22,10 @@ export interface Card {
   keywords?: string[] | null;
   /** On hand spells: casting opens a target choice. */
   targeted?: boolean;
+  /** Engine card kind, such as minion, tavern_spell or dark_gift. */
+  kind?: string;
+  /** Cards attached to a minion, such as its Dark Gift. */
+  attached?: Card[];
   tier?: number;
   eid?: number;
   shield_hits?: number;
@@ -84,7 +88,8 @@ export interface GameSnapshot {
       board: Minion[];
       shop: (Card & { sid: number; frozen?: boolean; price: number | null })[];
       hand: (Card & { hid: number })[];
-      pending: { kind: string; options?: Card[]; targets?: number[]; leave?: number } | null;
+      pending: { kind: string; source?: Card; options?: Card[]; targets?: number[]; leave?: number } | null;
+      dark_gift?: { available: boolean; uses: number; max_uses: number; cost: number; unlock_turn: number };
     };
     opponents: (HeroState & { id: number; alive: boolean })[];
   };

@@ -28,13 +28,22 @@ export function resolveTap(snapshot: GameSnapshot, { zone, id, card }: CardRef):
 /**
  * `zone` is the row under the pointer. `position` is the insertion index among the
  * friendly minions other than the dragged one, and is read only for board drops.
+ * `over` is the friendly minion directly under the pointer: a Magnetic hand minion
+ * dropped on a legal one attaches to it instead of being played beside it.
  */
-export function resolveDrop(snapshot: GameSnapshot, source: CardRef, zone: Zone | undefined, position: number): Action | undefined {
+export function resolveDrop(snapshot: GameSnapshot, source: CardRef, zone: Zone | undefined, position: number, over?: number): Action | undefined {
   const match = (kind: Action['kind'], fields?: Record<string, number>) => matchAction(snapshot, kind, fields);
   const { id } = source;
   if (zone === 'hand' && source.zone === 'shop') return match('buy', { shop_id: id });
   if (zone === 'shop' && source.zone === 'board') return match('sell', { entity_id: id });
   if (zone !== 'board' || source.zone === 'shop') return;
-  if (source.zone === 'hand') return match('cast', { hand_id: id }) ?? match('play', { hand_id: id, position });
+  if (source.zone === 'hand') {
+    const attach = over === undefined ? undefined : match('magnetize', { hand_id: id, target_id: over });
+    return attach ?? match('cast', { hand_id: id }) ?? match('play', { hand_id: id, position });
+  }
   return match('move', { entity_id: id, position });
 }
+
+/** Friendly minions the hand card `hid` may magnetize onto. */
+export const magnetTargets = (snapshot: GameSnapshot, hid: number) => snapshot.legal_actions.flatMap(a =>
+  a.kind === 'magnetize' && a.hand_id === hid ? [a.target_id] : []);

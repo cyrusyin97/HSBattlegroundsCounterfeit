@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import type { Action } from '../game-api';
 import { byId, localPoint } from '../pieces';
-import { resolveDrop, resolveTap, matchAction, type Zone } from '../core/intents';
+import { magnetTargets, resolveDrop, resolveTap, matchAction, type Zone } from '../core/intents';
 import { DROP_HINTS, type CardView, type ViewHost } from '../view';
 import { Stage } from './stage';
 import { insertionIndex, slots, ZONES, zoneAt } from './layout';
@@ -17,6 +17,8 @@ import { showStats } from './stats';
 
 const ZONE_LIST: Zone[] = ['shop', 'board', 'hand'];
 const DRAG_LIFT = 0.7;
+/** Board pixels from a minion's slot centre within which a Magnetic card attaches. */
+const MAGNET_REACH = 44;
 /** The hand is nearest the camera; this keeps its cards near the DOM hand's size. */
 const HAND_SCALE = 0.78;
 /** Board pixels the hand sinks below the screen while combat plays. */
@@ -168,11 +170,30 @@ export function createThreeView(host: ViewHost): CardView {
     const centers = board.flatMap((p, i) => p.key === source.key ? [] : [base[i].x]);
     const position = insertionIndex(x, centers);
     const zone = zoneAt(x, y);
-    d.action = resolveDrop(host.snapshot, source, zone, position);
+    // A hand card held over the middle of a friendly minion's slot may attach to it
+    // (Magnetic). Slots, not animated positions, decide it, so an opening gap cannot
+    // slide the minion out from under the pointer.
+    const overIndex = source.zone === 'hand' && zone === 'board' ? base.findIndex(b => Math.abs(b.x - x) < MAGNET_REACH) : -1;
+    const over = overIndex < 0 ? undefined : board[overIndex].id;
+    const under = overIndex < 0 ? undefined : cards.get(board[overIndex].key);
+    d.action = resolveDrop(host.snapshot, source, zone, position, over);
     const kind = d.action?.kind;
+    markMagnets(source.zone === 'hand' ? source.id : undefined, kind === 'magnetize' ? under : undefined);
     layout(kind === 'play' || kind === 'move' ? { gapAt: position, skip: kind === 'move' ? source.key : undefined } : undefined);
     for (const z of ZONE_LIST) marks[z].visible = !!d.action && z === zone;
     host.message(d.action ? DROP_HINTS[d.action.kind] ?? '松手确认' : '移至合法落点，或松手返回');
+  }
+
+  /** Outlines the minions a dragged Magnetic card can attach to; the one under it lights gold. */
+  function markMagnets(hid: number | undefined, over?: CardObject) {
+    const targets = hid === undefined ? [] : magnetTargets(host.snapshot, hid);
+    for (const p of zoneCards('board')) {
+      const obj = cards.get(p.key);
+      if (!obj) continue;
+      // Spell targets keep their outline; magnet targets add theirs while dragging.
+      obj.targetable = targets.includes(p.id) || !!matchAction(host.snapshot, 'target', { target_id: p.id });
+      obj.hovered = obj === over;
+    }
   }
 
   /** Settle cards into the confirmed layout once a command finishes or is rejected. */
@@ -185,6 +206,7 @@ export function createThreeView(host: ViewHost): CardView {
     const { obj, active, aiming, version, action } = drag;
     drag = undefined;
     for (const z of ZONE_LIST) marks[z].visible = false;
+    markMagnets(undefined);
     if (aiming) return aim(e, cancel);
     const valid = !cancel && !host.busy && version === host.snapshot.version;
     if (!active) {

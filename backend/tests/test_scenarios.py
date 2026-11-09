@@ -135,3 +135,21 @@ def test_hero_damage_replay_preserves_pre_damage_state(start):
     assert (resolved["state"]["me"]["armor"], resolved["state"]["me"]["health"]) == (0, 29)
     # A later shop action must retain this historical settlement, not overwrite it.
     assert step(resolved, "freeze")["combat"] == replay
+
+
+def test_mechanics(start):
+    snapshot = start("mechanics")
+    mech, = snapshot["state"]["me"]["board"]
+    magnet = next(c for c in snapshot["state"]["me"]["hand"] if c["id"] == "BG26_146")
+    attached = step(snapshot, "magnetize", hand_id=magnet["hid"], target_id=mech["eid"])
+    merged, = attached["state"]["me"]["board"]
+    assert merged["atk"] > mech["atk"] and merged["hp"] > mech["hp"]
+
+    # Each mechanic starts from a fresh copy of the scenario.
+    gift = step(start("mechanics"), "dark_gift")
+    pending = gift["state"]["me"]["pending"]
+    assert pending["kind"] == "discover" and all(o["attached"] for o in pending["options"])
+
+    choose = step(start("mechanics"), "cast")
+    assert choose["state"]["me"]["pending"]["kind"] == "choose_one"
+    assert "；或者" in choose["state"]["me"]["pending"]["source"]["text_zh"]

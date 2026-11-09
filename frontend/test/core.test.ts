@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Action, Combat, GameSnapshot } from '../src/game-api.ts';
-import { matchAction, resolveDrop, resolveTap, type CardRef } from '../src/core/intents.ts';
+import { magnetTargets, matchAction, resolveDrop, resolveTap, type CardRef } from '../src/core/intents.ts';
 import { friendlySide, heroBaseline, newCombat } from '../src/core/replay.ts';
 
 const card = { id: 'X', name_zh: '', text_zh: '' };
@@ -80,4 +80,17 @@ test('combat replay identity and hero baseline follow the local seat', () => {
   assert.equal(newCombat(after, after), null);
   assert.equal(heroBaseline(before, combat), hero);
   assert.equal(heroBaseline(before, null), before.state.me);
+});
+
+test('a Magnetic hand minion dropped on a legal minion attaches to it', () => {
+  const s = snapshot([
+    { kind: 'play', hand_id: 3, position: 1 },
+    { kind: 'magnetize', hand_id: 3, target_id: 10 },
+  ]);
+  const hand: CardRef = { zone: 'hand', id: 3, card };
+  assert.deepEqual(resolveDrop(s, hand, 'board', 1, 10), { kind: 'magnetize', hand_id: 3, target_id: 10 });
+  // Over a minion it cannot attach to, or between minions, it is played.
+  assert.deepEqual(resolveDrop(s, hand, 'board', 1, 11), { kind: 'play', hand_id: 3, position: 1 });
+  assert.deepEqual(resolveDrop(s, hand, 'board', 1), { kind: 'play', hand_id: 3, position: 1 });
+  assert.deepEqual(magnetTargets(s, 3), [10]);
 });

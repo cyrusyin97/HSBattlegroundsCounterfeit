@@ -5,6 +5,7 @@ import { badge, boardScale, byId, localPoint } from './pieces';
 import { playCombat } from './combat';
 import { animateHeroVitals, renderHeroPanel } from './hero-effects';
 import { matchAction } from './core/intents';
+import { chooseOneModes, describe } from './core/describe';
 import { execute } from './core/session';
 import { createThreeView } from './three/view';
 import { isShopAction, type CardView, type Transition, type ViewHost } from './view';
@@ -21,14 +22,31 @@ const host: ViewHost = {
   get busy() { return busy; },
   commit: action => commit(action),
   message,
-  tooltip(card, x = 0, y = 0) {
-    const tip = byId('tooltip');
-    tip.hidden = !card;
-    if (!card) return;
-    tip.textContent = [card.name_zh, card.text_zh].filter(Boolean).join(' · ');
-    tip.style.left = Math.min(x+9,1180)+'px'; tip.style.top = Math.min(y,615)+'px';
-  },
+  tooltip: (card, x = 0, y = 0) => showTip(card && describe(card).join('\n'), x, y),
 };
+
+/** Shows `text` in the tooltip at a board coordinate, or hides it. */
+function showTip(text: string | undefined, x = 0, y = 0) {
+  const tip = byId('tooltip');
+  tip.hidden = !text;
+  if (!text) return;
+  tip.textContent = text;
+  tip.style.left = Math.min(x+9,1180)+'px'; tip.style.top = Math.min(y,615)+'px';
+}
+
+/** Hover or focus on a HUD control shows its explanation beside it. */
+function explain(el: HTMLElement, text: string) {
+  el.setAttribute('aria-description', text);
+  const show = () => {
+    const r = el.getBoundingClientRect();
+    const p = localPoint(r.left, r.bottom);
+    showTip(text, Math.max(0, p.x - 9), p.y + 6);
+  };
+  el.addEventListener('pointerenter', show);
+  el.addEventListener('focus', show);
+  el.addEventListener('pointerleave', () => showTip(undefined));
+  el.addEventListener('blur', () => showTip(undefined));
+}
 
 function lock(value: boolean) {
   busy = value;
@@ -105,23 +123,40 @@ function render(transition?: Transition) {
   if (me.hero) {
     const parent = byId('hero');
     renderHeroPanel(parent, me);
-    me.hero_powers.forEach((p,i) => {const btn=control('hero',p.name_zh,match('hero_power',{slot:i}));btn.title=p.text_zh;});
+    me.hero_powers.forEach((p,i) => explain(control('hero',p.name_zh,match('hero_power',{slot:i})), p.name_zh+' · '+p.text_zh));
   }
   view.render(transition);
   control('tools','升本 '+me.upgrade_price,match('upgrade')).dataset.action='upgrade';
   control('tools','⟳ 刷新 '+me.refresh_price,match('refresh')).dataset.action='refresh';
   control('tools',me.frozen?'❄ 解冻':'❄ 冻结',match('freeze')).dataset.action='freeze';
-  if (match('dark_gift')) control('tools','黑暗之赐',match('dark_gift'));
+  const gift = me.dark_gift;
+  if (gift && match('dark_gift')) {
+    explain(control('tools','黑暗之赐 '+gift.cost,match('dark_gift')),
+      '黑暗之赐 · 花费'+gift.cost+'枚铸币，从三张各带一个不同黑暗之赐的随从中发现一张。每回合一次，本局还剩 '+(gift.max_uses-gift.uses)+'/'+gift.max_uses+' 次。');
+  }
   control('end','结束回合',match('end_turn'));
   if (match('cancel')) control('end','取消',match('cancel'));
   const choosing = snapshot.legal_actions.filter(a=>a.kind==='choose');
   byId('choices').hidden = !choosing.length;
   if (choosing.length) {
-    byId('choices').append(badge('',phase==='hero_select'?'选择英雄':'请选择一项'));
+    const pending = me.pending;
+    // Choose One offers the same card twice; its text names the two modes.
+    const modes = pending?.kind === 'choose_one' ? chooseOneModes(pending.source?.text_zh ?? '') : undefined;
+    const title = phase === 'hero_select' ? '选择英雄'
+      : modes ? '抉择 · ' + (pending?.source?.name_zh ?? '')
+      : pending?.source?.kind === 'dark_gift' ? '黑暗之赐 · 选择一张随从' : '请选择一项';
+    byId('choices').append(badge('choice-title', title));
     for (const a of choosing) {
-      const c=me.pending?.options?.[a.option];
-      const btn=control('choices',c?.name_zh || '选项 '+(a.option+1),a);
-      if(c){btn.title=c.text_zh;void loadCardImage(c.id).then(img=>{img.className='full';btn.prepend(img);});}
+      const c = pending?.options?.[a.option];
+      const btn = control('choices', '', a);
+      btn.classList.add('choice');
+      if (modes) {
+        btn.append(badge('choice-name', a.option === 0 ? '选项一' : '选项二'), badge('choice-text', modes[a.option] ?? ''));
+      } else if (c) {
+        const attached = describe(c).slice(1);
+        btn.append(badge('choice-name', c.name_zh), badge('choice-text', [c.text_zh, ...attached].filter(Boolean).join('\n')));
+        void loadCardImage(c.id).then(img => { img.className = 'full'; btn.prepend(img); });
+      } else btn.append(badge('choice-name', '选项 ' + (a.option + 1)));
     }
   }
   if (me.pending?.kind === 'target') {

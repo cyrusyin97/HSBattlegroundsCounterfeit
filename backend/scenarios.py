@@ -12,6 +12,7 @@ SCENARIOS = {
     "collision": "结束回合，观察 58 与 100 点伤害同时命中，以及双方剩余血量。",
     "reborn": "结束回合，观察复活的骑兵死亡后以 1 点生命值复生。",
     "hero_damage": "结束回合，观察敌方英雄攻击，己方 1 点护甲破碎并损失 1 点生命值。",
+    "mechanics": "第 3 回合、10 金币：把催眠机器人拖到拔线机上磁力吸附，使用黑暗之赐，或施放联盟旗帜做出抉择。",
 }
 
 
@@ -43,6 +44,15 @@ def make_scenario(key: str):
     elif key == "reborn":
         minion("BG25_001")
         minion("BGS_119", opponent, atk=3, hp=8)
+    elif key == "mechanics":
+        minion("BG29_611")
+        game.debug(json.dumps(dict(cmd="add_minion", p=0, zone="hand", card="BG26_146")))
+        game.debug(json.dumps(dict(cmd="add_spell", p=0, zone="hand", card="BG31_880")))
+        # Dark Gifts unlock on turn 3 and cost 3 gold.
+        state = json.loads(game.state_json())
+        state["turn"] = 3
+        state["players"][0]["gold"] = 10
+        game = taverngym.Game.from_json(json.dumps(state))
     elif key == "hero_damage":
         minion("BGS_004", atk=1, hp=1)
         minion("BGS_119", opponent, atk=3, hp=8)
