@@ -71,6 +71,21 @@ function control(parent: string, label: string, action?: Action) {
   return btn;
 }
 
+const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7 7.5.6-5.7 4.8 1.8 7.3L12 17.8l-6.6 3.9 1.8-7.3L1.5 9.6 9 9z" fill="#ffd34d" stroke="#7a4a10" stroke-width="1.2"/></svg>';
+
+/** A roster entry: hero portrait with armor and health. The name is in the title only. */
+function seat(s: { id: number; hero: Card | null; health: number; armor: number; alive: boolean }) {
+  const you = s.id === snapshot.state.seat;
+  const el = badge('seat' + (you ? ' you' : '') + (s.alive ? '' : ' out'), '');
+  el.title = (you ? '你 · ' : '') + (s.hero?.name_zh || '选将中') + (s.alive ? '' : ' · 出局');
+  el.setAttribute('role', 'img');
+  el.ariaLabel = el.title + '，护甲 ' + s.armor + '，生命 ' + s.health;
+  const face = badge('seat-face', '');
+  if (s.hero) void loadCardImage(s.hero.id).then(img => { img.alt = ''; face.append(img); });
+  el.append(face, badge('seat-armor', s.armor), badge('seat-health', s.health));
+  return el;
+}
+
 function render(transition?: Transition) {
   const { me, turn, phase } = snapshot.state;
   clearArrow();
@@ -82,15 +97,18 @@ function render(transition?: Transition) {
   byId('enemy-hero').classList.remove('hero-defeated');
   byId('phase').textContent = (phase === 'hero_select' ? '选择英雄' : (!me.alive || phase==='game_over') ? '对局结束' : '招募') + ' · 第 ' + turn + ' 回合';
   byId('gold').textContent = '◉ ' + me.gold + ' 金币';
-  const roster = [{id:snapshot.state.seat,hero:me.hero,health:me.health,alive:me.alive}, ...snapshot.state.opponents];
-  roster.forEach(s => byId('seats').append(badge('seat'+(s.id===snapshot.state.seat?' you':''), (s.id===snapshot.state.seat?'你 · ':'')+(s.hero?.name_zh || '选将中')+(s.alive?'　'+s.health:'　出局'))));
+  const roster = [{id:snapshot.state.seat,hero:me.hero,health:me.health,armor:me.armor,alive:me.alive}, ...snapshot.state.opponents];
+  byId('seats').append(...roster.map(seat));
+  const tier = byId('tier');
+  tier.innerHTML = STAR.repeat(me.tier);
+  tier.ariaLabel = '酒馆等级 ' + me.tier;
   if (me.hero) {
     const parent = byId('hero');
     renderHeroPanel(parent, me);
     me.hero_powers.forEach((p,i) => {const btn=control('hero',p.name_zh,match('hero_power',{slot:i}));btn.title=p.text_zh;});
   }
   view.render(transition);
-  control('tools','★ '+me.tier+'　升本 '+me.upgrade_price,match('upgrade')).dataset.action='upgrade';
+  control('tools','升本 '+me.upgrade_price,match('upgrade')).dataset.action='upgrade';
   control('tools','⟳ 刷新 '+me.refresh_price,match('refresh')).dataset.action='refresh';
   control('tools',me.frozen?'❄ 解冻':'❄ 冻结',match('freeze')).dataset.action='freeze';
   if (match('dark_gift')) control('tools','黑暗之赐',match('dark_gift'));

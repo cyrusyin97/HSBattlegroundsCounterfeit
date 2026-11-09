@@ -4,10 +4,10 @@
 import { loadCardImage } from '../demo-art';
 
 const PRINT_W = 404, PRINT_H = 558;
-/** Source rectangles inside the printed card: the minion oval and the spell window. */
+/** Source rectangles inside the printed card, shaped like the face's art window (about 0.9 wide per tall). */
 const CROP = {
-  minion: { x: 98, y: 100, w: 200, h: 161 },
-  spell: { x: 100, y: 90, w: 200, h: 161 },
+  minion: { x: 105, y: 62, w: 186, h: 206 },
+  spell: { x: 122, y: 86, w: 156, h: 172 },
 };
 
 const images = new Map<string, HTMLImageElement | null>();

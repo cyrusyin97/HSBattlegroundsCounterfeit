@@ -177,8 +177,9 @@ export function faceOf(p: Placement): Face {
     name: c.name_zh, seed: c.id, spell,
     atk: spell ? undefined : c.atk, hp: spell ? undefined : c.hp,
     tier: p.zone === 'shop' ? c.tier : undefined,
-    price: p.zone === 'shop' ? p.price : undefined,
-    costsHealth: p.zone === 'shop' ? c.costs_health : undefined,
+    // Minions always cost the same, so only shop spells carry a price.
+    price: p.zone === 'shop' && spell ? p.price : undefined,
+    costsHealth: p.zone === 'shop' && spell ? c.costs_health : undefined,
     frozen: p.frozen,
   };
 }
@@ -455,11 +456,12 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   g.fill();
   g.clip();
 
-  // Sizes are in 256ths of the card width. At a 960 × 540 window a warband card is
-  // about 80 px wide, so one unit is about 0.31 px: names ~11 px, stats ~15 px.
+  // Sizes are in 256ths of the card width; a face is about 326 tall. At a 960 × 540
+  // window a warband card is about 80 px wide, so one unit is about 0.31 px.
+  // The face carries no name: names and text live in the hover tooltip.
   // Illustration window: an oval for minions, a rounded panel for spells. Without
   // artwork it falls back to a tinted emblem holding the name's first glyph.
-  const cx = w / 2, cy = 98 * u, rx = 104 * u, ry = 82 * u;
+  const cx = w / 2, cy = 124 * u, rx = 104 * u, ry = 115 * u;
   const frame = () => {
     g.beginPath();
     if (f.spell) g.roundRect(cx - rx, cy - ry, rx * 2, ry * 2, 22 * u);
@@ -478,7 +480,7 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
     g.fillStyle = glow;
     g.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
     g.fillStyle = 'rgba(255,241,214,.92)';
-    g.font = font(64);
+    g.font = font(72);
     g.fillText([...f.name][0] ?? '?', cx, cy + 3 * u);
   }
   g.restore();
@@ -487,33 +489,16 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   g.strokeStyle = '#e6c98a';
   g.stroke();
 
-  // Name band: one line when it fits, otherwise two balanced lines.
-  const top = 180 * u, bottom = 252 * u;
-  g.fillStyle = 'rgba(18,9,5,.78)';
-  g.fillRect(0, top, w, bottom - top);
-  const room = w - 24 * u;
-  const fit = (text: string, max: number, min: number) => {
-    let size = max;
-    g.font = font(size);
-    while (size > min && g.measureText(text).width > room) g.font = font(--size);
-    return size;
-  };
-  const glyphs = [...f.name];
-  g.fillStyle = '#ffe8b3';
-  fit(f.name, 40, 34);
-  if (g.measureText(f.name).width <= room) {
-    g.fillText(f.name, cx, (top + bottom) / 2);
-  } else {
-    const half = Math.ceil(glyphs.length / 2);
-    const lines = [glyphs.slice(0, half).join(''), glyphs.slice(half).join('')];
-    const size = Math.min(...lines.map(line => fit(line, 34, 20)));
-    g.font = font(size);
-    lines.forEach((line, i) => g.fillText(line, cx, (top + bottom) / 2 + (i - 0.5) * size * 1.05 * u));
-  }
+  // A dark fade along the bottom keeps the numbers readable over any artwork.
+  const scrim = g.createLinearGradient(0, h - 80 * u, 0, h);
+  scrim.addColorStop(0, 'rgba(8,4,2,0)');
+  scrim.addColorStop(1, 'rgba(8,4,2,.8)');
+  g.fillStyle = scrim;
+  g.fillRect(0, h - 80 * u, w, 80 * u);
   if (f.spell) {
-    g.font = font(26, '600');
-    g.fillStyle = '#d9c3ff';
-    g.fillText('法术', cx, 288 * u);
+    g.font = font(24, '600');
+    g.fillStyle = '#e3d3ff';
+    g.fillText('法术', cx, h - 26 * u);
   }
 
   if (f.frozen) {
@@ -533,29 +518,53 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   roundPath(g, 4 * u, 4 * u, w - 8 * u, h - 8 * u, 23 * u);
   g.stroke();
 
-  const gem = (x: number, y: number, r: number, color: string, text: string, size: number) => {
-    g.beginPath();
-    g.arc(x, y, r * u, 0, Math.PI * 2);
-    g.fillStyle = color;
-    g.fill();
-    g.lineWidth = 3 * u;
-    g.strokeStyle = '#f1dcae';
-    g.stroke();
+  // Numbers stand on their own: a bright fill inside a heavy dark outline and shadow.
+  const number = (text: string, x: number, y: number, align: CanvasTextAlign, size: number, color: string) => {
+    g.save();
     g.font = `bold ${size * u}px Georgia,serif`;
-    // Shrink two-digit and prefixed values to stay inside the gem.
-    const scale = Math.min(1, (r * 1.7 * u) / g.measureText(text).width);
-    g.font = `bold ${size * scale * u}px Georgia,serif`;
-    g.lineWidth = 6 * u;
-    g.strokeStyle = 'rgba(0,0,0,.8)';
-    g.strokeText(text, x, y + 2 * u);
-    g.fillStyle = '#fff';
-    g.fillText(text, x, y + 2 * u);
+    g.textAlign = align;
+    g.lineJoin = 'round';
+    g.shadowColor = 'rgba(0,0,0,.7)';
+    g.shadowBlur = 6 * u;
+    g.shadowOffsetY = 4 * u;
+    g.lineWidth = 11 * u;
+    g.strokeStyle = '#1a0d06';
+    g.strokeText(text, x, y);
+    g.shadowColor = 'transparent';
+    g.fillStyle = color;
+    g.fillText(text, x, y);
+    g.restore();
   };
-  const low = h - 38 * u;
-  if (f.atk !== undefined) gem(38 * u, low, 36, '#b88a2c', String(f.atk), 50);
-  if (f.hp !== undefined) gem(w - 38 * u, low, 36, '#aa3732', String(f.hp), 50);
-  if (f.tier) gem(36 * u, 36 * u, 31, '#703177', '★' + f.tier, 34);
-  if (f.price !== undefined) gem(w - 36 * u, 36 * u, 31, '#967019', (f.costsHealth ? '♥' : '') + (f.price ?? '–'), 38);
+  const low = h - 30 * u;
+  if (f.atk !== undefined) number(String(f.atk), 18 * u, low, 'left', 60, '#ffd66b');
+  if (f.hp !== undefined) number(String(f.hp), w - 18 * u, low, 'right', 60, '#ff7a6b');
+  if (f.price !== undefined) number((f.costsHealth ? '♥' : '') + (f.price ?? '–'), w - 16 * u, 30 * u, 'right', 48, '#ffe9a8');
+  if (f.tier) drawStars(g, f.tier, 9 * u, 9 * u, 26 * u);
+}
+
+/** Tier as a row of gold stars on a dark pill, one star per tier. */
+function drawStars(g: CanvasRenderingContext2D, count: number, x: number, y: number, size: number) {
+  const pad = size * 0.22;
+  g.save();
+  g.fillStyle = 'rgba(18,9,5,.72)';
+  g.beginPath();
+  g.roundRect(x, y, count * size + pad * 2, size + pad * 2, (size + pad * 2) / 2);
+  g.fill();
+  g.fillStyle = '#ffd34d';
+  g.strokeStyle = '#7a4a10';
+  g.lineWidth = size * 0.06;
+  for (let i = 0; i < count; i++) {
+    const sx = x + pad + i * size + size / 2, sy = y + pad + size / 2 + size * 0.04;
+    g.beginPath();
+    for (let k = 0; k < 10; k++) {
+      const r = k % 2 ? size * 0.21 : size * 0.48, a = -Math.PI / 2 + k * Math.PI / 5;
+      g.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
+    }
+    g.closePath();
+    g.fill();
+    g.stroke();
+  }
+  g.restore();
 }
 
 function roundPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
