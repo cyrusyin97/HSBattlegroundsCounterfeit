@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import type { Zone } from '../core/intents';
 import type { Key, Placement } from './reconciler';
 import { roundedRect, type Stage } from './stage';
+import { reducedMotion, type Pose as Timed } from './motion';
 
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const FACE_PX = 512;
 
 /** Shared sizes and geometry for every card on one stage. */
@@ -84,7 +84,12 @@ export class CardObject {
   shield = false;
   removing = false;
   gone = false;
+  /** A timed pose that replaces the spring while set, for lunges and recoils. */
+  override?: Timed;
   private held?: THREE.Vector3;
+  private placement?: Placement;
+  private face?: Face;
+  private flashLeft = 0;
   private readonly tilt = new THREE.Group();
   private readonly spin = new THREE.Group();
   private readonly faceMesh: THREE.Mesh;
@@ -123,6 +128,8 @@ export class CardObject {
     this.zone = p.zone;
     this.removing = this.gone = false;
     this.shield = !!p.card.shield_hits;
+    this.placement = p;
+    this.face = face;
     const key = JSON.stringify(face);
     if (key !== this.faceKey) {
       this.faceKey = key;
@@ -144,6 +151,17 @@ export class CardObject {
     }
   }
 
+  /** Redraw with changed numbers, such as health at the moment of contact. */
+  restat(patch: Partial<Face>) {
+    if (this.placement && this.face) this.show(this.placement, { ...this.face, ...patch });
+  }
+
+  /** Brighten the face briefly, as on being hit. */
+  flash(seconds = 0.2) { this.flashLeft = seconds; }
+
+  get restPosition() { return this.rest.pos; }
+  get position() { return this.current.pos; }
+
   hold(pos: THREE.Vector3 | undefined) { this.held = pos?.clone(); }
   get isHeld() { return this.held !== undefined; }
   remove() { this.removing = true; this.hovered = false; }
@@ -159,13 +177,24 @@ export class CardObject {
     const goal = this.goal();
     const k = reducedMotion.matches ? 1 : 1 - Math.exp(-dt * (this.held ? 28 : 12));
     const c = this.current;
-    c.pos.lerp(goal.pos, k);
-    c.roll += (goal.roll - c.roll) * k;
+    let pitch = 0;
+    if (this.override && !this.removing) {
+      c.pos.copy(this.override.pos);
+      c.roll = this.override.roll;
+      pitch = this.override.pitch;
+    } else {
+      c.pos.lerp(goal.pos, k);
+      c.roll += (goal.roll - c.roll) * k;
+    }
     c.scale += (goal.scale - c.scale) * k;
     this.root.position.copy(c.pos);
     this.root.scale.setScalar(Math.max(c.scale, 0.001));
     // A positive roll turns clockwise on screen, which is negative about the face normal.
     this.spin.rotation.z = -c.roll;
+    // A positive pitch tips the top of the card away from the camera.
+    this.tilt.rotation.x = -this.kit.lean - pitch;
+    this.flashLeft = Math.max(0, this.flashLeft - dt);
+    (this.faceMesh.material as THREE.MeshStandardMaterial).emissive.setScalar(this.flashLeft > 0 ? 0.35 : 0);
 
     const lift = Math.max(0, c.pos.y - this.kit.centerY);
     // The key light sits behind the camera, so the shadow falls toward the viewer.

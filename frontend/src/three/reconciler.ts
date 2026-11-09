@@ -3,7 +3,8 @@
 import type { Action, Card, GameSnapshot } from '../game-api';
 import type { Zone } from '../core/intents';
 
-export type Key = `${Zone}:${number}`;
+/** Enemy keys exist only while combat shows the opposing warband. */
+export type Key = `${Zone | 'enemy'}:${number}`;
 export interface Placement {
   key: Key; zone: Zone; id: number; card: Card; index: number;
   price?: number | null; frozen?: boolean;

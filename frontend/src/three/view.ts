@@ -1,5 +1,5 @@
-// WebGL card renderer for the recruit phase. Combat playback and shop effects still
-// use the DOM rows, which show over the canvas while the table is in combat.
+// WebGL card renderer: recruit rows, drag and drop, and minion combat. The HUD,
+// hero panels and text stay in the DOM over the canvas.
 import * as THREE from 'three';
 import type { Action } from '../game-api';
 import { byId, localPoint } from '../pieces';
@@ -9,11 +9,16 @@ import { Stage } from './stage';
 import { insertionIndex, slots, ZONES, zoneAt } from './layout';
 import { diff, placements, transfers, type Key, type Placement } from './reconciler';
 import { CardKit, CardObject, faceOf } from './entities';
+import { Clock } from './motion';
+import { Labels, Particles } from './fx';
+import { playCombat, type CombatTable } from './combat';
 
 const ZONE_LIST: Zone[] = ['shop', 'board', 'hand'];
 const DRAG_LIFT = 0.7;
 /** The hand is nearest the camera; this keeps its cards near the DOM hand's size. */
 const HAND_SCALE = 0.78;
+/** Board pixels the hand sinks below the screen while combat plays. */
+const HAND_AWAY = 300;
 /** A board drop opens a gap at `gapAt`; a moved card leaves its own slot. */
 interface Gap { gapAt: number; skip?: Key }
 
@@ -22,9 +27,12 @@ export function createThreeView(host: ViewHost): CardView {
   const canvas = document.createElement('canvas');
   canvas.className = 'stage';
   table.prepend(canvas);
-  table.classList.add('three-view');
   const stage = new Stage(canvas);
   const kit = new CardKit(stage);
+  const clock = new Clock(stage);
+  const particles = new Particles(stage);
+  const labels = new Labels(stage, table);
+  canvas.after(labels.layer);
   const root = new THREE.Group();
   stage.scene.add(root);
   const mark = (zone: Zone) => {
@@ -51,18 +59,37 @@ export function createThreeView(host: ViewHost): CardView {
 
   const zoneCards = (zone: Zone) => [...placed.values()].filter(p => p.zone === zone).sort((a, b) => a.index - b.index);
 
+  function obtain(key: Key) {
+    let obj = cards.get(key);
+    if (!obj) {
+      obj = new CardObject(kit);
+      root.add(obj.root, obj.shadow);
+      cards.set(key, obj);
+    }
+    return obj;
+  }
+
+  function arrange(zone: Zone, list: Placement[], gapAt?: number, sink = 0) {
+    const spots = slots(zone, list.length, gapAt);
+    list.forEach((p, i) => {
+      const pos = stage.boardToWorld(spots[i].x, spots[i].y + sink, kit.centerY);
+      // Later hand cards sit slightly in front so overlapping faces never z-fight.
+      if (zone === 'hand') pos.addScaledVector(kit.normal, i * 0.03);
+      cards.get(p.key)?.setRest(pos, spots[i].roll, zone === 'hand' ? HAND_SCALE : 1);
+    });
+  }
+
   function layout(gap?: Gap) {
     for (const zone of ZONE_LIST) {
       const list = zoneCards(zone).filter(p => !(zone === 'board' && gap?.skip === p.key));
-      const spots = slots(zone, list.length, zone === 'board' ? gap?.gapAt : undefined);
-      list.forEach((p, i) => {
-        const pos = stage.boardToWorld(spots[i].x, spots[i].y, kit.centerY);
-        // Later hand cards sit slightly in front so overlapping faces never z-fight.
-        if (zone === 'hand') pos.addScaledVector(kit.normal, i * 0.03);
-        cards.get(p.key)?.setRest(pos, spots[i].roll, zone === 'hand' ? HAND_SCALE : 1);
-      });
+      arrange(zone, list, zone === 'board' ? gap?.gapAt : undefined);
     }
   }
+
+  const combatTable: CombatTable = {
+    kit, clock, particles, labels, cards, obtain,
+    arrange: (zone, list) => arrange(zone, list),
+  };
 
   function pick(x: number, y: number) {
     const hits = stage.ray(x, y).intersectObjects(root.children, true);
@@ -156,33 +183,33 @@ export function createThreeView(host: ViewHost): CardView {
 
   return {
     render(transition) {
-      // Combat playback leaves its tokens in the DOM rows.
-      for (const id of ['board', 'shop', 'hand']) byId(id).replaceChildren();
       const snapshot = host.snapshot;
       const next = placements(snapshot);
       const from = transition ? transfers(transition.before, snapshot, transition.action) : new Map<Key, Key>();
       const { place, exit } = diff(cards.keys(), next, from);
       for (const key of exit) cards.get(key)!.remove();
       for (const { placement, previous } of place) {
-        let obj = previous && cards.get(previous);
-        if (obj) cards.delete(previous!);
-        else {
-          obj = new CardObject(kit);
-          root.add(obj.root, obj.shadow);
+        const reused = previous && previous !== placement.key && cards.get(previous);
+        if (reused) {
+          cards.delete(previous!);
+          cards.set(placement.key, reused);
         }
-        cards.set(placement.key, obj);
+        const obj = obtain(placement.key);
         obj.show(placement, faceOf(placement));
         const eid = placement.card.eid;
         obj.targetable = eid !== undefined && !!matchAction(snapshot, 'target', { target_id: eid });
       }
       placed = new Map(next.map(p => [p.key, p]));
       setHover(undefined);
-      root.visible = true;
       layout();
     },
-    beginCombat() {
+    async playCombat(script) {
       setHover(undefined);
-      root.visible = false;
+      // The hand sinks out of view and the shop clears for the opposing warband.
+      arrange('hand', zoneCards('hand'), undefined, HAND_AWAY);
+      for (const p of zoneCards('shop')) cards.get(p.key)?.remove();
+      placed = new Map();
+      await playCombat(combatTable, script);
     },
     // Refresh, freeze and upgrade effects are not ported yet. The face redraw shows the new state.
     shopEffect: async () => {},

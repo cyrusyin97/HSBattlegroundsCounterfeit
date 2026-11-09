@@ -34,7 +34,7 @@ function lock(value: boolean) {
   busy = value;
   scene.disabled = value;
   (byId('restart') as HTMLButtonElement).disabled = value;
-  for (const id of ['tools','end','board','hand','shop','choices','hero']) byId(id).inert = value;
+  for (const id of ['tools','end','choices','hero']) byId(id).inert = value;
 }
 function clearArrow() { byId('curve').removeAttribute('d'); }
 function drawArrow(x: number, y: number) {
@@ -49,10 +49,7 @@ async function commit(action: Action) {
   message('正在结算…');
   try {
     const { snapshot: result, note, combat, hero } = await execute(before, action);
-    if (combat) {
-      view.beginCombat();
-      await playCombat(combat, before);
-    }
+    if (combat) await playCombat(combat, before, script => view.playCombat(script));
     snapshot = result;
     render(note ? undefined : { action, before });
     if (hero) await animateHeroVitals(byId('hero'), hero, result.state.me);

@@ -2,6 +2,7 @@
 // The controller owns the snapshot, commits, HUD and hero panels; the renderer owns
 // the shop, warband and hand, and turns gestures on them into commits.
 import type { Action, Card, GameSnapshot } from './game-api';
+import type { CombatScript } from './core/combat-script';
 
 export type ShopAction = 'refresh' | 'freeze' | 'upgrade';
 export function isShopAction(kind: Action['kind']): kind is ShopAction {
@@ -23,8 +24,8 @@ export interface Transition { action: Action; before: GameSnapshot }
 
 export interface CardView {
   render(transition?: Transition): void;
-  /** Hide recruit cards while the DOM combat playback uses the rows. */
-  beginCombat(): void;
+  /** Minion combat on the table. Hero panels and the result text belong to the controller. */
+  playCombat(script: CombatScript): Promise<void>;
   shopEffect(kind: ShopAction, before: GameSnapshot, after: GameSnapshot): Promise<void>;
   /** Board coordinate where the targeting arrow starts, when the cast card is shown. */
   castOrigin(): { x: number; y: number } | undefined;
