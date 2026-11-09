@@ -3,12 +3,11 @@ import { createGame, type Action, type Card, type GameSnapshot } from './game-ap
 import { loadCardImage } from './demo-art';
 import { badge, boardScale, byId, localPoint } from './pieces';
 import { playCombat } from './combat';
-import { isShopAction } from './tavern-effects';
 import { animateHeroVitals, renderHeroPanel } from './hero-effects';
 import { matchAction } from './core/intents';
 import { execute } from './core/session';
-import { createDomView } from './dom-cards';
-import type { CardView, Transition, ViewHost } from './view';
+import { createThreeView } from './three/view';
+import { isShopAction, type CardView, type Transition, type ViewHost } from './view';
 
 const table = byId('table'), status = byId('status'), scene = byId('scene') as HTMLSelectElement;
 let snapshot: GameSnapshot;
@@ -76,7 +75,6 @@ function render(transition?: Transition) {
   clearArrow();
   for (const id of ['tools','end','hero','seats','choices']) byId(id).replaceChildren();
   host.tooltip();
-  table.classList.toggle('frozen',me.frozen);
   table.classList.remove('in-combat');
   byId('enemy-hero').hidden = true;
   byId('hero').classList.remove('hero-defeated');
@@ -132,7 +130,6 @@ function resize(){const scale=boardScale();table.style.setProperty('--scale',Str
 const params=new URLSearchParams(location.search);
 const initial=params.get('scenario');
 if (initial && [...scene.options].some(o=>o.value===initial))scene.value=initial;
-// ?renderer=three opts into the WebGL card renderer. Three.js loads only in that case.
-view = params.get('renderer')==='three' ? (await import('./three/view')).createThreeView(host) : createDomView(host);
+view = createThreeView(host);
 scene.onchange=start;byId('restart').onclick=start;
 window.addEventListener('resize',resize);resize();void start();

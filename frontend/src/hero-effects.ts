@@ -83,7 +83,6 @@ export function showCombatHeroes(replay: Combat, before: GameSnapshot) {
   }, opponentId === null);
   enemy.hidden = false;
   byId('table').classList.add('in-combat');
-  byId('table').classList.remove('frozen');
 }
 
 export async function finishHeroCombat(replay: Combat, snapshot: GameSnapshot) {

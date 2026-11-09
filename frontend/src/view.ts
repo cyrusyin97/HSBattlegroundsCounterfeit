@@ -1,8 +1,12 @@
-// Contract between the controller (board.ts) and a card renderer. The controller
-// owns the snapshot, commits, HUD and combat playback; a renderer owns the shop,
-// warband and hand, and turns gestures on them into commits.
+// Contract between the controller (board.ts) and the card renderer (three/view.ts).
+// The controller owns the snapshot, commits, HUD and hero panels; the renderer owns
+// the shop, warband and hand, and turns gestures on them into commits.
 import type { Action, Card, GameSnapshot } from './game-api';
-import type { ShopAction } from './tavern-effects';
+
+export type ShopAction = 'refresh' | 'freeze' | 'upgrade';
+export function isShopAction(kind: Action['kind']): kind is ShopAction {
+  return kind === 'refresh' || kind === 'freeze' || kind === 'upgrade';
+}
 
 export interface ViewHost {
   readonly snapshot: GameSnapshot;
