@@ -65,3 +65,12 @@ export function samplePose(keys: Key<Pose>[], t: number, out: Pose): Pose {
 }
 
 export const pose = (pos: THREE.Vector3, pitch = 0, roll = 0): Pose => ({ pos, pitch, roll });
+
+/** Runs keyed poses on anything with a pose override, then hands it back to its spring. */
+export async function drive(clock: Clock, target: { override?: Pose }, frames: Key<Pose>[], ms: number) {
+  const current = pose(new THREE.Vector3());
+  target.override = current;
+  try { await clock.tween(ms, k => samplePose(frames, k, current)); } finally {
+    if (target.override === current) target.override = undefined;
+  }
+}

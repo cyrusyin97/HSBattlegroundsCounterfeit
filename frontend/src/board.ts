@@ -53,7 +53,11 @@ async function commit(action: Action) {
     snapshot = result;
     render(note ? undefined : { action, before });
     if (hero) await animateHeroVitals(byId('hero'), hero, result.state.me);
-    if (!note && isShopAction(action.kind)) await view.shopEffect(action.kind, before, result);
+    if (!note && isShopAction(action.kind)) {
+      byId('tools').querySelector(`[data-action="${action.kind}"]`)?.animate(
+        [{transform:'perspective(450px) translateZ(-18px) rotateX(16deg)'},{transform:'none'}], 340);
+      await view.shopEffect(action.kind, before, result);
+    }
     if (note) message(note);
   } catch {
     message('连接中断，请检查服务后重试');

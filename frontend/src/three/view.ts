@@ -12,6 +12,8 @@ import { CardKit, CardObject, faceOf } from './entities';
 import { Clock } from './motion';
 import { Labels, Particles } from './fx';
 import { playCombat, type CombatTable } from './combat';
+import * as effects from './effects';
+import { showStats } from './stats';
 
 const ZONE_LIST: Zone[] = ['shop', 'board', 'hand'];
 const DRAG_LIFT = 0.7;
@@ -43,17 +45,34 @@ export function createThreeView(host: ViewHost): CardView {
   const marks: Record<Zone, THREE.Mesh> = { shop: mark('shop'), board: mark('board'), hand: mark('hand') };
 
   const cards = new Map<Key, CardObject>();
+  /** Objects no longer keyed to a card, kept until their exit effect ends. */
+  const loose = new Set<CardObject>();
   let placed = new Map<Key, Placement>();
+  /** Shop changes from the last refresh render, played by shopEffect. */
+  let refreshed: { departing: CardObject[]; arriving: CardObject[] } | undefined;
+  if (new URLSearchParams(location.search).has('stats')) {
+    showStats(stage, table);
+    Object.assign(window, { three: { stage, cards } });
+  }
   let hover: CardObject | undefined;
   let drag: { obj: CardObject; pointer: number; x: number; y: number; version: number; active: boolean; action?: Action } | undefined;
 
+  const discard = (obj: CardObject) => {
+    root.remove(obj.root, obj.shadow);
+    obj.dispose();
+  };
   stage.onFrame(dt => {
     for (const [key, obj] of cards) {
       obj.step(dt);
       if (!obj.gone) continue;
-      root.remove(obj.root, obj.shadow);
-      obj.dispose();
+      discard(obj);
       cards.delete(key);
+    }
+    for (const obj of loose) {
+      obj.step(dt);
+      if (!obj.gone) continue;
+      discard(obj);
+      loose.delete(obj);
     }
   });
 
@@ -86,6 +105,8 @@ export function createThreeView(host: ViewHost): CardView {
     }
   }
 
+  const effectTable: effects.EffectTable = { stage, kit, clock, particles };
+  const shopObjects = () => zoneCards('shop').flatMap(p => cards.get(p.key) ?? []);
   const combatTable: CombatTable = {
     kit, clock, particles, labels, cards, obtain,
     arrange: (zone, list) => arrange(zone, list),
@@ -187,14 +208,29 @@ export function createThreeView(host: ViewHost): CardView {
       const next = placements(snapshot);
       const from = transition ? transfers(transition.before, snapshot, transition.action) : new Map<Key, Key>();
       const { place, exit } = diff(cards.keys(), next, from);
-      for (const key of exit) cards.get(key)!.remove();
+      // A refresh hands its old shop cards to the effect instead of shrinking them here.
+      const refreshing = transition?.action.kind === 'refresh';
+      refreshed = refreshing ? { departing: [], arriving: [] } : undefined;
+      for (const key of exit) {
+        const obj = cards.get(key)!;
+        if (refreshed && obj.zone === 'shop' && !obj.removing) {
+          cards.delete(key);
+          loose.add(obj);
+          refreshed.departing.push(obj);
+        } else obj.remove();
+      }
       for (const { placement, previous } of place) {
         const reused = previous && previous !== placement.key && cards.get(previous);
         if (reused) {
           cards.delete(previous!);
           cards.set(placement.key, reused);
         }
+        const fresh = !cards.has(placement.key);
         const obj = obtain(placement.key);
+        if (refreshed && fresh && placement.zone === 'shop') {
+          obj.visible = false;
+          refreshed.arriving.push(obj);
+        }
         obj.show(placement, faceOf(placement));
         const eid = placement.card.eid;
         obj.targetable = eid !== undefined && !!matchAction(snapshot, 'target', { target_id: eid });
@@ -211,8 +247,18 @@ export function createThreeView(host: ViewHost): CardView {
       placed = new Map();
       await playCombat(combatTable, script);
     },
-    // Refresh, freeze and upgrade effects are not ported yet. The face redraw shows the new state.
-    shopEffect: async () => {},
+    async shopEffect(kind, before, after) {
+      if (kind === 'refresh') {
+        const { departing, arriving } = refreshed ?? { departing: [], arriving: [] };
+        refreshed = undefined;
+        return effects.refresh(effectTable, departing, arriving);
+      }
+      if (kind === 'freeze') {
+        const wasFrozen = new Set(before.state.me.shop.filter(c => c.frozen).flatMap(c => cards.get(`shop:${c.sid}`) ?? []));
+        return effects.freeze(effectTable, after.state.me.frozen, shopObjects(), wasFrozen);
+      }
+      return effects.upgrade(effectTable, after.state.me.tier, shopObjects());
+    },
     castOrigin() {
       const casting = host.snapshot.state.me.casting;
       const obj = casting === null ? undefined : cards.get(`hand:${casting}`);

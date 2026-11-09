@@ -8,6 +8,7 @@ import { roundedRect, type Stage } from './stage';
 import { reducedMotion, type Pose as Timed } from './motion';
 
 const FACE_PX = 512;
+export const ICE_OPACITY = 0.42;
 
 /** Shared sizes and geometry for every card on one stage. */
 export class CardKit {
@@ -23,6 +24,8 @@ export class CardKit {
   readonly body: THREE.ExtrudeGeometry;
   readonly outline: THREE.ShapeGeometry;
   readonly shadow: THREE.PlaneGeometry;
+  /** A clear block a little larger than the card, worn while its shop slot is frozen. */
+  readonly ice: THREE.ExtrudeGeometry;
   readonly shadowTexture: THREE.CanvasTexture;
   readonly bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x7a5530, metalness: 0.45, roughness: 0.45 });
 
@@ -50,6 +53,11 @@ export class CardKit {
     this.body.translate(0, 0, -this.depth);
     const pad = this.width * 0.06;
     this.outline = new THREE.ShapeGeometry(roundedRect(this.width + pad, this.height + pad, radius + pad / 2), 6);
+    const icePad = this.width * 0.08;
+    this.ice = new THREE.ExtrudeGeometry(roundedRect(this.width + icePad, this.height + icePad, radius + icePad / 2), {
+      depth: 0.12, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1, curveSegments: 4,
+    });
+    this.ice.translate(0, 0, -0.085);
     this.shadow = new THREE.PlaneGeometry(this.width * 1.3, this.height * 0.95);
     this.shadow.rotateX(-Math.PI / 2);
     this.shadowTexture = radialTexture();
@@ -94,6 +102,8 @@ export class CardObject {
   private readonly spin = new THREE.Group();
   private readonly faceMesh: THREE.Mesh;
   private readonly outlineMesh: THREE.Mesh;
+  /** Shown while the face is frozen. Effects animate its scale and opacity. */
+  readonly ice: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
   private readonly canvas = document.createElement('canvas');
   private readonly texture: THREE.CanvasTexture;
   private faceKey = '';
@@ -112,7 +122,13 @@ export class CardObject {
     this.outlineMesh = new THREE.Mesh(kit.outline, new THREE.MeshBasicMaterial({ toneMapped: false }));
     this.outlineMesh.position.z = -0.002;
     this.outlineMesh.raycast = () => {};
-    this.spin.add(new THREE.Mesh(kit.body, kit.bodyMaterial), this.faceMesh, this.outlineMesh);
+    this.ice = new THREE.Mesh(kit.ice, new THREE.MeshStandardMaterial({
+      color: 0xc8f3ff, emissive: 0x2a6f8f, roughness: 0.15, metalness: 0.1,
+      transparent: true, opacity: ICE_OPACITY, depthWrite: false,
+    }));
+    this.ice.raycast = () => {};
+    this.ice.visible = false;
+    this.spin.add(new THREE.Mesh(kit.body, kit.bodyMaterial), this.faceMesh, this.outlineMesh, this.ice);
     this.tilt.add(this.spin);
     this.tilt.rotation.x = -kit.lean;
     this.root.add(this.tilt);
@@ -130,6 +146,7 @@ export class CardObject {
     this.shield = !!p.card.shield_hits;
     this.placement = p;
     this.face = face;
+    this.ice.visible = !!face.frozen;
     const key = JSON.stringify(face);
     if (key !== this.faceKey) {
       this.faceKey = key;
@@ -160,6 +177,8 @@ export class CardObject {
   flash(seconds = 0.2) { this.flashLeft = seconds; }
 
   get restPosition() { return this.rest.pos; }
+  /** Hidden cards still move; effects reveal them on cue. */
+  set visible(value: boolean) { this.root.visible = this.shadow.visible = value; }
   get position() { return this.current.pos; }
 
   hold(pos: THREE.Vector3 | undefined) { this.held = pos?.clone(); }
@@ -213,6 +232,7 @@ export class CardObject {
     (this.faceMesh.material as THREE.Material).dispose();
     (this.outlineMesh.material as THREE.Material).dispose();
     (this.shadow.material as THREE.Material).dispose();
+    this.ice.material.dispose();
   }
 
   private goal(): Pose {

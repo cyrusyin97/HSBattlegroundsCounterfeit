@@ -49,3 +49,4 @@ header,#tools,#phase,#hero,#end,#gold,#status,#seats{position:absolute}header{le
 .stage {position:absolute;left:0;top:0;width:1440px;height:810px;display:block}
 .fx-layer {position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .fx-layer .combat-burst {left:0;top:0}
+.stats {position:absolute;right:8px;bottom:8px;z-index:30;margin:0;padding:6px 9px;background:#000a;color:#9f9;font:12px/1.4 ui-monospace,monospace;pointer-events:none}

@@ -12,6 +12,8 @@ export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   private readonly raycaster = new THREE.Raycaster();
   private readonly callbacks: ((dt: number) => void)[] = [];
+  /** CPU time of the last frame's updates and draw, in milliseconds. */
+  frameMs = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -28,8 +30,10 @@ export class Stage {
     this.renderer.setAnimationLoop(now => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      const start = performance.now();
       for (const callback of this.callbacks) callback(dt);
       this.renderer.render(this.scene, this.camera);
+      this.frameMs = performance.now() - start;
     });
   }
 

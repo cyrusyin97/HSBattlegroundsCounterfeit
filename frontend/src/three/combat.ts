@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import type { AttackImpact, Minion } from '../game-api';
 import type { CombatScript, CombatStep } from '../core/combat-script';
 import { CardKit, CardObject, faceOf } from './entities';
-import { Clock, easeIn, pose, samplePose, type Key as Frame, type Pose } from './motion';
+import { Clock, drive, easeIn, pose, type Key as Frame, type Pose } from './motion';
 import { burstLabel, Labels, Particles } from './fx';
 import type { Key, Placement } from './reconciler';
 
@@ -64,14 +64,7 @@ export async function playCombat(t: CombatTable, script: CombatScript) {
     ], 780);
   }
 
-  /** Runs keyed poses on `obj`, then hands it back to its spring. */
-  async function move(obj: CardObject, frames: Frame<Pose>[], ms: number) {
-    const current = pose(new THREE.Vector3());
-    obj.override = current;
-    try { await clock.tween(ms, k => samplePose(frames, k, current)); } finally {
-      if (obj.override === current) obj.override = undefined;
-    }
-  }
+  const move = (obj: CardObject, frames: Frame<Pose>[], ms: number) => drive(clock, obj, frames, ms);
 
   async function attack(impact: AttackImpact) {
     const a = t.cards.get(keyOf(impact.from)!), d = t.cards.get(keyOf(impact.to)!);
