@@ -1,12 +1,15 @@
 // Card objects. Each card springs toward a goal pose every frame, so a new snapshot,
 // hover or drag only retargets it and interrupted motion needs no cleanup.
-// Faces are procedural placeholders drawn from engine data.
+// Faces are drawn from engine data around the card's cropped illustration.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Zone } from '../core/intents';
 import type { Key, Placement } from './reconciler';
 import { roundedRect, type Stage } from './stage';
 import { reducedMotion, type Pose as Timed } from './motion';
-import { traits, type Mark } from '../core/traits';
+import { traits } from '../core/traits';
+import { artFor, drawArt, requestArt } from './art';
+import * as tex from './textures';
 
 const FACE_PX = 512;
 export const ICE_OPACITY = 0.42;
@@ -27,16 +30,25 @@ export class CardKit {
   readonly shadow: THREE.PlaneGeometry;
   /** A clear block a little larger than the card, worn while its shop slot is frozen. */
   readonly ice: THREE.ExtrudeGeometry;
-  /** Taunt: a pointed iron bulwark standing behind the card. */
+  /** Taunt: a hammered steel bulwark behind the card, inside a broad gilded rim, with rivets. */
   readonly bulwark: THREE.ExtrudeGeometry;
-  /** Divine Shield: a rounded golden shell around the card. */
-  readonly shell: THREE.ExtrudeGeometry;
-  /** A gilded rim one step larger than the bulwark, so it reads against the dark mat. */
   readonly bulwarkRim: THREE.ExtrudeGeometry;
-  readonly bulwarkMaterial = new THREE.MeshStandardMaterial({ color: 0xb7b2aa, metalness: 0.75, roughness: 0.32 });
-  readonly rimMaterial = new THREE.MeshStandardMaterial({ color: 0xe0b45a, metalness: 0.8, roughness: 0.3, emissive: 0x4a2f08 });
-  readonly smokeTexture: THREE.CanvasTexture;
-  readonly shadowTexture: THREE.CanvasTexture;
+  readonly rivets: THREE.BufferGeometry;
+  readonly bulwarkMaterial: THREE.MeshStandardMaterial;
+  readonly rimMaterial = new THREE.MeshStandardMaterial({ color: 0xf3c55c, metalness: 0.95, roughness: 0.22, emissive: 0x5a3a0a });
+  /** Divine Shield: a flattened golden bubble, bright at its rim and clear over the face. */
+  readonly shell: THREE.SphereGeometry;
+  readonly shellMaterial: THREE.ShaderMaterial;
+  /** Reborn: a cracked silver-white block around the card. */
+  readonly reborn: THREE.ExtrudeGeometry;
+  readonly rebornMaterial: THREE.MeshStandardMaterial;
+  /** Deathrattle and Venomous badges hung at the bottom edge of the card. */
+  readonly badge: THREE.CircleGeometry;
+  readonly skullMaterial: THREE.MeshBasicMaterial;
+  readonly poisonMaterial: THREE.MeshBasicMaterial;
+  readonly smokeTexture = tex.smokeTexture();
+  readonly windTexture = tex.windTexture();
+  readonly shadowTexture = tex.radialTexture();
   /** World units per board pixel on the warband row, where cards have their nominal size. */
   private readonly perPixel: number;
   readonly bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x7a5530, metalness: 0.45, roughness: 0.45 });
@@ -70,20 +82,54 @@ export class CardKit {
       depth: 0.12, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1, curveSegments: 4,
     });
     this.ice.translate(0, 0, -0.085);
-    const plate = { depth: 0.05, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.02, bevelSegments: 2, curveSegments: 8 };
+    const plate = { depth: 0.05, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.025, bevelSegments: 3, curveSegments: 10 };
     this.bulwark = new THREE.ExtrudeGeometry(bulwarkShape(this.width, this.height, 0.2), plate);
     this.bulwark.translate(0, 0, -this.depth - 0.09);
-    this.bulwarkRim = new THREE.ExtrudeGeometry(bulwarkShape(this.width, this.height, 0.27), plate);
-    this.bulwarkRim.translate(0, 0, -this.depth - 0.16);
-    const shellPad = this.width * 0.14;
-    this.shell = new THREE.ExtrudeGeometry(roundedRect(this.width + shellPad, this.height + shellPad, this.width * 0.3), {
-      depth: 0.16, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05, bevelSegments: 3, curveSegments: 10,
+    this.bulwarkRim = new THREE.ExtrudeGeometry(bulwarkShape(this.width, this.height, 0.31), plate);
+    this.bulwarkRim.translate(0, 0, -this.depth - 0.15);
+    const steel = tex.steelTexture();
+    // Extruded faces take UVs from shape coordinates (world units), so tile by size.
+    steel.wrapS = steel.wrapT = THREE.RepeatWrapping;
+    steel.repeat.set(0.9, 0.9);
+    this.bulwarkMaterial = new THREE.MeshStandardMaterial({ map: steel, metalness: 0.85, roughness: 0.38 });
+    this.rivets = rivetGeometry(this.width, this.height);
+    this.shell = new THREE.SphereGeometry(1, 48, 32);
+    this.shell.scale(this.width * 0.74, this.height * 0.67, 0.34);
+    this.shellMaterial = new THREE.ShaderMaterial({
+      uniforms: { color: { value: new THREE.Color(1, 0.78, 0.32) }, time: { value: 0 } },
+      vertexShader: `varying vec3 vNormal; varying vec3 vView;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vNormal = normalize(normalMatrix * normal);
+          vView = normalize(-mv.xyz);
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `uniform vec3 color; uniform float time; varying vec3 vNormal; varying vec3 vView;
+        void main() {
+          float rim = pow(1.0 - abs(dot(vNormal, vView)), 1.8);
+          float pulse = 0.85 + 0.15 * sin(time * 3.0);
+          // Clear over the face, solid gold toward the silhouette, so it reads on light and dark.
+          gl_FragColor = vec4(color * (0.95 + 0.5 * rim), (0.07 + 0.85 * rim) * pulse);
+        }`,
+      transparent: true, depthWrite: false,
     });
-    this.shell.translate(0, 0, -0.1);
-    this.smokeTexture = smokeTexture();
+    const rebornPad = this.width * 0.11;
+    this.reborn = new THREE.ExtrudeGeometry(roundedRect(this.width + rebornPad, this.height + rebornPad, radius + rebornPad / 2), {
+      depth: 0.14, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2, curveSegments: 6,
+    });
+    this.reborn.translate(0, 0, -0.1);
+    const cracks = tex.crackTexture();
+    cracks.repeat.set(1 / (this.width + rebornPad), 1 / (this.height + rebornPad));
+    cracks.offset.set(0.5, 0.5);
+    this.rebornMaterial = new THREE.MeshStandardMaterial({
+      map: cracks, color: 0xf4f8ff, emissive: 0x1c2533, metalness: 0.35, roughness: 0.2,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
+    this.badge = new THREE.CircleGeometry(this.width * 0.12, 40);
+    this.skullMaterial = new THREE.MeshBasicMaterial({ map: tex.skullTexture(), transparent: true });
+    this.poisonMaterial = new THREE.MeshBasicMaterial({ map: tex.poisonTexture(), transparent: true });
     this.shadow = new THREE.PlaneGeometry(this.width * 1.3, this.height * 0.95);
     this.shadow.rotateX(-Math.PI / 2);
-    this.shadowTexture = radialTexture();
   }
 
   /** Scale that makes a card on board row `y` look as large as one on the warband row. */
@@ -103,6 +149,18 @@ function bulwarkShape(width: number, height: number, pad: number) {
   return s;
 }
 
+/** Rivets around the steel plate, just inside its edge. */
+function rivetGeometry(width: number, height: number) {
+  const w = width / 2 + width * 0.2, top = height / 2 + width * 0.14, inset = width * 0.08;
+  const spots = [
+    [-w + inset, top - inset], [0, top - inset * 0.8], [w - inset, top - inset],
+    [-w + inset * 0.8, -height * 0.05], [w - inset * 0.8, -height * 0.05],
+    [-w * 0.55, -height * 0.4], [w * 0.55, -height * 0.4],
+  ];
+  return mergeGeometries(spots.map(([x, y]) =>
+    new THREE.SphereGeometry(width * 0.03, 10, 8).scale(1, 1, 0.6).translate(x, y, -0.07)));
+}
+
 function worldPerPixel(stage: Stage, y: number) {
   return stage.boardToWorld(720, y).distanceTo(stage.boardToWorld(820, y)) / 100;
 }
@@ -111,7 +169,6 @@ interface Pose { pos: THREE.Vector3; roll: number; scale: number }
 export interface Face {
   name: string; seed: string; spell: boolean;
   atk?: number; hp?: number; tier?: number; price?: number | null; costsHealth?: boolean; frozen?: boolean;
-  marks?: Mark[];
 }
 
 export function faceOf(p: Placement): Face {
@@ -123,7 +180,6 @@ export function faceOf(p: Placement): Face {
     price: p.zone === 'shop' ? p.price : undefined,
     costsHealth: p.zone === 'shop' ? c.costs_health : undefined,
     frozen: p.frozen,
-    marks: spell ? undefined : traits(c).marks,
   };
 }
 
@@ -152,8 +208,14 @@ export class CardObject {
   /** Shown while the face is frozen. Effects animate its scale and opacity. */
   readonly ice: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
   private readonly bulwark: THREE.Mesh;
-  private readonly shell: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
+  private readonly shell: THREE.Mesh;
   private readonly veil: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
+  private readonly wind: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
+  private readonly rebornShell: THREE.Mesh;
+  private readonly skull: THREE.Mesh;
+  private readonly poison: THREE.Mesh;
+  private windy = false;
+  private disposed = false;
   private age = Math.random() * 10;
   private readonly canvas = document.createElement('canvas');
   private readonly texture: THREE.CanvasTexture;
@@ -181,25 +243,30 @@ export class CardObject {
     this.ice.visible = false;
     this.bulwark = new THREE.Mesh(kit.bulwark, kit.bulwarkMaterial);
     const rim = new THREE.Mesh(kit.bulwarkRim, kit.rimMaterial);
+    const rivets = new THREE.Mesh(kit.rivets, kit.rimMaterial);
     // Frames sit outside the card and must not widen its pick area.
-    rim.raycast = () => {};
-    this.bulwark.add(rim);
-    this.shell = new THREE.Mesh(kit.shell, new THREE.MeshStandardMaterial({
-      color: 0xffe29a, emissive: 0xffb11f, emissiveIntensity: 0.6, roughness: 0.2,
-      transparent: true, opacity: 0.3, depthWrite: false,
-    }));
-    const smoke = kit.smokeTexture.clone();
-    smoke.wrapS = smoke.wrapT = THREE.RepeatWrapping;
+    rim.raycast = rivets.raycast = () => {};
+    this.bulwark.add(rim, rivets);
+    this.shell = new THREE.Mesh(kit.shell, kit.shellMaterial);
+    this.shell.renderOrder = 2;
     this.veil = new THREE.Mesh(kit.face, new THREE.MeshBasicMaterial({
-      map: smoke, color: 0x9a8fb4, transparent: true, opacity: 0.75, depthWrite: false,
+      map: scrolling(kit.smokeTexture), transparent: true, opacity: 0.9, depthWrite: false,
     }));
     this.veil.position.z = 0.004;
-    for (const mesh of [this.bulwark, this.shell, this.veil]) {
+    this.wind = new THREE.Mesh(kit.face, new THREE.MeshBasicMaterial({
+      map: scrolling(kit.windTexture), transparent: true, depthWrite: false,
+    }));
+    this.wind.position.z = 0.006;
+    this.rebornShell = new THREE.Mesh(kit.reborn, kit.rebornMaterial);
+    this.rebornShell.renderOrder = 1;
+    this.skull = new THREE.Mesh(kit.badge, kit.skullMaterial);
+    this.poison = new THREE.Mesh(kit.badge, kit.poisonMaterial);
+    for (const mesh of [this.bulwark, this.shell, this.veil, this.wind, this.rebornShell, this.skull, this.poison]) {
       mesh.raycast = () => {};
       mesh.visible = false;
     }
     this.spin.add(this.bulwark, new THREE.Mesh(kit.body, kit.bodyMaterial), this.faceMesh, this.outlineMesh,
-      this.veil, this.ice, this.shell);
+      this.veil, this.wind, this.skull, this.poison, this.ice, this.rebornShell, this.shell);
     this.tilt.add(this.spin);
     this.tilt.rotation.x = -kit.lean;
     this.root.add(this.tilt);
@@ -214,21 +281,39 @@ export class CardObject {
     this.key = p.key;
     this.zone = p.zone;
     this.removing = this.gone = false;
-    const { auras } = traits(p.card);
+    const { auras, marks } = traits(p.card);
     // Overlapping hand cards would bury each other's frames and shells.
     const table = p.zone !== 'hand';
     this.shield = table && auras.has('shield');
     this.taunt = table && auras.has('taunt');
     this.stealth = auras.has('stealth');
+    this.windy = marks.includes('windfury');
+    this.rebornShell.visible = table && marks.includes('reborn');
+    // Badges hang centred on the bottom edge, side by side when both apply.
+    const badges = [marks.includes('deathrattle') && this.skull, marks.includes('venomous') && this.poison]
+      .filter((mesh): mesh is THREE.Mesh => !!mesh);
+    this.skull.visible = this.poison.visible = false;
+    badges.forEach((mesh, i) => {
+      mesh.visible = true;
+      // The card's bottom edge rests on the table, so the badge rides just above it.
+      mesh.position.set((i - (badges.length - 1) / 2) * this.kit.width * 0.25, -this.kit.height / 2 + this.kit.width * 0.1, 0.008);
+    });
     this.placement = p;
     this.face = face;
     this.ice.visible = !!face.frozen;
-    const key = JSON.stringify(face);
-    if (key !== this.faceKey) {
-      this.faceKey = key;
-      drawFace(this.canvas, face);
-      this.texture.needsUpdate = true;
-    }
+    this.redraw();
+    if (artFor(face.seed) === undefined) void requestArt(face.seed).then(() => this.redraw());
+  }
+
+  /** Redraws the face when its data or its artwork changed. */
+  private redraw() {
+    if (!this.face || this.disposed) return;
+    const art = artFor(this.face.seed);
+    const key = JSON.stringify(this.face) + (art ? '+art' : '');
+    if (key === this.faceKey) return;
+    this.faceKey = key;
+    drawFace(this.canvas, this.face, art ?? undefined);
+    this.texture.needsUpdate = true;
   }
 
   /** Layout target. A new card starts above its slot and grows into place. */
@@ -303,9 +388,16 @@ export class CardObject {
     this.age += dt;
     this.bulwark.visible = this.taunt;
     this.shell.visible = this.shield;
-    if (this.shield) this.shell.material.opacity = 0.26 + (reducedMotion.matches ? 0 : 0.07 * Math.sin(this.age * 3));
+    const still = reducedMotion.matches;
+    if (this.shield) this.kit.shellMaterial.uniforms.time.value = still ? 0 : performance.now() / 1000;
     this.veil.visible = this.stealth;
-    if (this.stealth && !reducedMotion.matches) this.veil.material.map!.offset.set(this.age * 0.05, this.age * -0.03);
+    if (this.stealth && !still) this.veil.material.map!.offset.set(this.age * 0.05, this.age * -0.03);
+    this.wind.visible = this.windy;
+    if (this.windy) {
+      // Gusts sweep across the face and swell and fade.
+      if (!still) this.wind.material.map!.offset.set(-this.age * 0.55, Math.sin(this.age * 1.7) * 0.04);
+      this.wind.material.opacity = still ? 0.85 : 0.6 + 0.4 * Math.max(0, Math.sin(this.age * 2.2));
+    }
     if (this.removing && c.scale < 0.04) this.gone = true;
   }
 
@@ -315,9 +407,11 @@ export class CardObject {
     (this.outlineMesh.material as THREE.Material).dispose();
     (this.shadow.material as THREE.Material).dispose();
     this.ice.material.dispose();
-    this.shell.material.dispose();
-    this.veil.material.map!.dispose();
-    this.veil.material.dispose();
+    this.disposed = true;
+    for (const layer of [this.veil, this.wind]) {
+      layer.material.map!.dispose();
+      layer.material.dispose();
+    }
   }
 
   private goal(): Pose {
@@ -333,13 +427,21 @@ export class CardObject {
   }
 }
 
+/** A per-card copy of a shared texture that can scroll on its own. */
+function scrolling(texture: THREE.Texture) {
+  const copy = texture.clone();
+  copy.wrapS = copy.wrapT = THREE.RepeatWrapping;
+  copy.needsUpdate = true;
+  return copy;
+}
+
 function hue(seed: string) {
   let h = 0;
   for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return h;
 }
 
-function drawFace(canvas: HTMLCanvasElement, f: Face) {
+function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   const g = canvas.getContext('2d')!;
   const w = canvas.width, h = canvas.height, u = w / 256, base = hue(f.seed);
   const font = (size: number, weight = 'bold') => `${weight} ${size * u}px "PingFang SC","Microsoft YaHei",sans-serif`;
@@ -355,43 +457,35 @@ function drawFace(canvas: HTMLCanvasElement, f: Face) {
 
   // Sizes are in 256ths of the card width. At a 960 × 540 window a warband card is
   // about 80 px wide, so one unit is about 0.31 px: names ~11 px, stats ~15 px.
-  // Emblem: an oval for minions, a diamond for spells, holding the name's first glyph.
-  const cx = w / 2, cy = 118 * u;
-  g.beginPath();
-  if (f.spell) {
-    g.moveTo(cx, cy - 60 * u); g.lineTo(cx + 52 * u, cy); g.lineTo(cx, cy + 60 * u); g.lineTo(cx - 52 * u, cy); g.closePath();
-  } else {
-    g.ellipse(cx, cy, 50 * u, 58 * u, 0, 0, Math.PI * 2);
-  }
-  const glow = g.createRadialGradient(cx, cy - 20 * u, 8 * u, cx, cy, 64 * u);
-  glow.addColorStop(0, `hsl(${base} 55% 58%)`);
-  glow.addColorStop(1, `hsl(${base} 45% 22%)`);
-  g.fillStyle = glow;
-  g.fill();
-  g.lineWidth = 4 * u;
-  g.strokeStyle = '#e6c98a';
-  g.stroke();
-  g.fillStyle = 'rgba(255,241,214,.92)';
+  // Illustration window: an oval for minions, a rounded panel for spells. Without
+  // artwork it falls back to a tinted emblem holding the name's first glyph.
+  const cx = w / 2, cy = 98 * u, rx = 104 * u, ry = 82 * u;
+  const frame = () => {
+    g.beginPath();
+    if (f.spell) g.roundRect(cx - rx, cy - ry, rx * 2, ry * 2, 22 * u);
+    else g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  };
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = font(60);
-  g.fillText([...f.name][0] ?? '?', cx, cy + 3 * u);
-
-  // Keyword marks sit on the emblem's lower edge, above the name.
-  const marks = f.marks ?? [];
-  marks.forEach((mark, i) => {
-    const x = cx + (i - (marks.length - 1) / 2) * 50 * u, y = 166 * u, [glyph, color] = MARK_STYLE[mark];
-    g.beginPath();
-    g.arc(x, y, 22 * u, 0, Math.PI * 2);
-    g.fillStyle = color;
-    g.fill();
-    g.lineWidth = 3 * u;
-    g.strokeStyle = '#f1dcae';
-    g.stroke();
-    g.font = font(28);
-    g.fillStyle = '#fff';
-    g.fillText(glyph, x, y + 1 * u);
-  });
+  g.save();
+  frame();
+  g.clip();
+  if (art) drawArt(g, art, f.spell, cx - rx, cy - ry, rx * 2, ry * 2);
+  else {
+    const glow = g.createRadialGradient(cx, cy - 20 * u, 8 * u, cx, cy, rx);
+    glow.addColorStop(0, `hsl(${base} 55% 58%)`);
+    glow.addColorStop(1, `hsl(${base} 45% 22%)`);
+    g.fillStyle = glow;
+    g.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
+    g.fillStyle = 'rgba(255,241,214,.92)';
+    g.font = font(64);
+    g.fillText([...f.name][0] ?? '?', cx, cy + 3 * u);
+  }
+  g.restore();
+  frame();
+  g.lineWidth = 5 * u;
+  g.strokeStyle = '#e6c98a';
+  g.stroke();
 
   // Name band: one line when it fits, otherwise two balanced lines.
   const top = 180 * u, bottom = 252 * u;
@@ -464,51 +558,7 @@ function drawFace(canvas: HTMLCanvasElement, f: Face) {
   if (f.price !== undefined) gem(w - 36 * u, 36 * u, 31, '#967019', (f.costsHealth ? '♥' : '') + (f.price ?? '–'), 38);
 }
 
-const MARK_STYLE: Record<Mark, [string, string]> = {
-  deathrattle: ['亡', '#5b3a78'],
-  windfury: ['风', '#2d7c8f'],
-  reborn: ['生', '#3c8f7a'],
-  venomous: ['毒', '#3f7d2c'],
-  cleave: ['溅', '#8f4a2d'],
-};
-
 function roundPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   g.beginPath();
   g.roundRect(x, y, w, h, r);
-}
-
-/** Soft drifting smoke for Stealth, tiled across the face. */
-function smokeTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 256;
-  const g = canvas.getContext('2d')!;
-  g.fillStyle = 'rgba(30,24,44,.55)';
-  g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 60; i++) {
-    const x = Math.random() * 256, y = Math.random() * 256, r = 18 + Math.random() * 46;
-    // Draw each puff on every wrapped copy so the tile repeats seamlessly.
-    for (const [dx, dy] of [[0, 0], [256, 0], [-256, 0], [0, 256], [0, -256]]) {
-      const puff = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
-      puff.addColorStop(0, `rgba(205,195,230,${0.12 + Math.random() * 0.12})`);
-      puff.addColorStop(1, 'rgba(205,195,230,0)');
-      g.fillStyle = puff;
-      g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
-    }
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function radialTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
-  const g = canvas.getContext('2d')!;
-  const fill = g.createRadialGradient(64, 64, 4, 64, 64, 64);
-  fill.addColorStop(0, 'rgba(0,0,0,1)');
-  fill.addColorStop(0.5, 'rgba(0,0,0,.55)');
-  fill.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = fill;
-  g.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(canvas);
 }

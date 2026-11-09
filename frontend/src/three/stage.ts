@@ -1,6 +1,7 @@
 // Renderer, camera, lights and table. Board coordinates (1440 × 810) map to the
 // canvas, so layout and HUD share one coordinate system.
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Rect } from './layout';
 
 export const BOARD_W = 1440, BOARD_H = 810;
@@ -25,6 +26,9 @@ export class Stage {
     const sun = new THREE.DirectionalLight(0xffe3b8, 2.4);
     sun.position.set(-4, 9, 14);
     this.scene.add(new THREE.HemisphereLight(0xfff0dc, 0x3b2414, 1.5), sun);
+    // A soft room reflection gives metals (bulwark, rims, card bodies) something to mirror.
+    this.scene.environment = new THREE.PMREMGenerator(this.renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.45;
     this.addTable();
     let last = performance.now();
     this.renderer.setAnimationLoop(now => {
