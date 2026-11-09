@@ -86,3 +86,9 @@ header,#tools,#phase,#hero,#end,#gold,#status,#seats,#divider,.row{position:abso
 .armor-fragment {position:absolute;left:-10px;bottom:9px;width:11px;height:19px;background:linear-gradient(110deg,#eafaff,#5b9cbe 47%,#304957);clip-path:polygon(0 0,100% 20%,65% 100%,15% 70%);z-index:9}
 .hero-defeated .hero-image,.ghost-hero .hero-image {filter:grayscale(1) brightness(.6)}
 .ghost-hero .hero-health,.ghost-hero .hero-armor {display:none}
+
+/* WebGL renderer: the canvas draws recruit cards under the HUD; DOM rows serve combat playback only. */
+#table.three-view {background:#1a0f0b}
+#table.three-view .row,#table.three-view #divider {visibility:hidden}
+#table.three-view.in-combat .row {visibility:visible}
+.stage {position:absolute;left:0;top:0;width:1440px;height:810px;display:block}

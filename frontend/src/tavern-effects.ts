@@ -1,7 +1,7 @@
 import type { Action, GameSnapshot } from './game-api';
 import { byId, badge } from './pieces';
 
-type ShopAction = 'refresh' | 'freeze' | 'upgrade';
+export type ShopAction = 'refresh' | 'freeze' | 'upgrade';
 export function isShopAction(kind: Action['kind']): kind is ShopAction {
   return kind === 'refresh' || kind === 'freeze' || kind === 'upgrade';
 }
