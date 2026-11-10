@@ -35,6 +35,3 @@ export interface CardView {
   resize(scale: number): void;
 }
 
-export const DROP_HINTS: Partial<Record<Action['kind'], string>> = {
-  buy: '松手购买', sell: '松手出售', cast: '松手施法', move: '松手确认站位', play: '松手出牌', magnetize: '松手磁力吸附',
-};

@@ -2,14 +2,23 @@
 import json
 import logging
 from collections import Counter
+from functools import lru_cache
 from threading import Lock
 from uuid import uuid4
 
+import opencc
 import taverngym
 from pydantic import BaseModel, ConfigDict, Field
 
 
 logger = logging.getLogger(__name__)
+# Simplified to Traditional with Taiwan phrasing; the engine has no zhTW card strings.
+TAIWAN = opencc.OpenCC("s2twp")
+
+
+@lru_cache(maxsize=8192)
+def taiwan(text):
+    return TAIWAN.convert(text)
 
 
 class ActionRequest(BaseModel):
@@ -35,6 +44,9 @@ def visible_cards(value):
                        "costs_health ticket owned triple_need locked temporary golden_text hero_power "
                        "hero_power_id slot usable passive uses_turn uses_game activate_cost activations "
                        "counter chronum_cost reward goal play_cost")
+        for field in ("name", "text"):
+            if value.get(field + "_zh"):
+                value[field + "_tw"] = taiwan(value[field + "_zh"])
     return {key: visible_cards(item) for key, item in value.items()}
 
 

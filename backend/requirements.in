@@ -2,6 +2,7 @@
 fastapi
 uvicorn[standard]
 numpy
+opencc
 pytest
 httpx2
 ./vendor/wheels/taverngym-1.0.0+impact2-cp310-abi3-macosx_11_0_arm64.whl

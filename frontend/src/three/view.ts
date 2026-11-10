@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import type { Action } from '../game-api';
 import { byId, localPoint } from '../pieces';
 import { magnetTargets, resolveDrop, resolveTap, matchAction, targetAction, type Zone } from '../core/intents';
-import { DROP_HINTS, type CardView, type ViewHost } from '../view';
+import type { CardView, ViewHost } from '../view';
+import { t } from '../i18n';
 import { Stage } from './stage';
 import { COMBAT_HAND, insertionIndex, slots, ZONES, zoneAt, type Rect } from './layout';
 import { diff, placements, transfers, type Key, type Placement } from './reconciler';
@@ -183,7 +184,8 @@ export function createThreeView(host: ViewHost): CardView {
     markMagnets(source.zone === 'hand' ? source.id : undefined, kind === 'magnetize' ? under : undefined);
     layout(kind === 'play' || kind === 'move' ? { gapAt: position, skip: kind === 'move' ? source.key : undefined } : undefined);
     for (const z of ZONE_LIST) marks[z].visible = !!d.action && z === zone;
-    host.message(d.action ? DROP_HINTS[d.action.kind] ?? '松手确认' : '移至合法落点，或松手返回');
+    const drop = t().drop;
+    host.message(d.action ? drop[d.action.kind] ?? drop.confirm : drop.seek);
   }
 
   /** Outlines the minions a dragged Magnetic card can attach to; the one under it lights gold. */
@@ -222,7 +224,7 @@ export function createThreeView(host: ViewHost): CardView {
     if (valid && action) return void send(action, obj);
     obj.hold(undefined);
     layout();
-    host.message('无法放置，已返回原位');
+    host.message(t().drop.invalid);
   }
 
   /**

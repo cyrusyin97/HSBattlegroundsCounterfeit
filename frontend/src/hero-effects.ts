@@ -1,5 +1,6 @@
 import type { Combat, GameSnapshot, HeroState } from './game-api';
 import { withCardImage } from './demo-art';
+import { cardName, t } from './i18n';
 import { badge, byId } from './pieces';
 
 async function animate(el: HTMLElement, frames: Keyframe[], duration: number) {
@@ -17,11 +18,11 @@ export function renderHeroPanel(parent: HTMLElement, state: HeroState, ghost = f
   const portrait = badge('hero-image', '');
   body.append(portrait);
   if (state.hero) withCardImage(state.hero.id, image => {
-    image.alt = state.hero!.name_zh;
+    image.alt = cardName(state.hero!);
     portrait.append(image);
   });
   body.append(badge('hero-armor', state.armor), badge('hero-health', state.health));
-  parent.append(body, badge('hero-name', ghost ? '幽灵' : state.hero?.name_zh ?? '英雄'));
+  parent.append(body, badge('hero-name', ghost ? t().hero.ghost : (state.hero && cardName(state.hero)) || t().hero.fallback));
   parent.classList.toggle('ghost-hero', ghost);
   return body;
 }
@@ -133,7 +134,7 @@ export async function finishHeroCombat(replay: Combat, snapshot: GameSnapshot) {
     burst = badge('combat-burst hero-hit' + (actual === 0 ? ' absorbed' : ''), '');
     // Use the same outlined number styling as minion contact.
     const label = document.createElement('b');
-    label.textContent = actual > 0 ? '−' + actual : '抵挡';
+    label.textContent = actual > 0 ? '−' + actual : t().combat.blocked;
     burst.append(label);
     defender.append(burst);
     const effects = [

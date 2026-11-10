@@ -10,6 +10,7 @@ import { reducedMotion, type Pose as Timed } from './motion';
 import { traits } from '../core/traits';
 import { artFor, drawArt, requestArt } from './art';
 import * as tex from './textures';
+import { CATALOGS, cardName, fontStack, locale, type Locale } from '../i18n';
 
 const FACE_PX = 512;
 export const ICE_OPACITY = 0.42;
@@ -171,6 +172,8 @@ function worldPerPixel(stage: Stage, y: number) {
 
 interface Pose { pos: THREE.Vector3; roll: number; scale: number }
 export interface Face {
+  /** The UI language the face is drawn in; part of the texture cache key. */
+  lang: Locale;
   name: string; seed: string; spell: boolean;
   atk?: number; hp?: number; tier?: number; price?: number | null; costsHealth?: boolean; frozen?: boolean;
   golden?: boolean;
@@ -179,7 +182,7 @@ export interface Face {
 export function faceOf(p: Placement): Face {
   const c = p.card, spell = c.type === 'spell';
   return {
-    name: c.name_zh, seed: c.id, spell,
+    lang: locale(), name: cardName(c), seed: c.id, spell,
     atk: spell ? undefined : c.atk, hp: spell ? undefined : c.hp,
     tier: p.zone === 'shop' ? c.tier : undefined,
     // Minions always cost the same, so only shop spells carry a price.
@@ -464,7 +467,7 @@ function hue(seed: string) {
 function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   const g = canvas.getContext('2d')!;
   const w = canvas.width, h = canvas.height, u = w / 256, base = hue(f.seed);
-  const font = (size: number, weight = 'bold') => `${weight} ${size * u}px "PingFang SC","Microsoft YaHei",sans-serif`;
+  const font = (size: number, weight = 'bold') => `${weight} ${size * u}px ${fontStack(f.lang)}`;
   g.clearRect(0, 0, w, h);
   g.save();
   roundPath(g, 0, 0, w, h, 26 * u);
@@ -534,7 +537,7 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   if (f.spell) {
     g.font = font(24, '600');
     g.fillStyle = '#e3d3ff';
-    g.fillText('法术', cx, h - 26 * u);
+    g.fillText(CATALOGS[f.lang].card.spell, cx, h - 26 * u);
   }
 
   if (f.frozen) {

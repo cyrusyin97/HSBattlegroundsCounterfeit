@@ -27,6 +27,7 @@ A personal, local-only Hearthstone Battlegrounds–style auto-battler. You play 
   - Right-click or Esc cancels.
 - **Combat playback:** the engine's combat log is replayed on the table, with lunges, damage bursts, shield breaks, deaths, summons and the final hero attack. The hand stays visible, and hovering still explains cards.
 - **Opponent info:** the roster ranks players by health plus armor. Each portrait shows the tribe of that player's current warband. Hovering a portrait shows the player's rank, tavern tier, win streak, hero power and trinkets.
+- **Three languages:** English, Simplified Chinese and Traditional Chinese, switchable from the menu in the top-left without restarting. The game follows your browser language by default; `?lang=en`, `?lang=zh-CN` or `?lang=zh-TW` forces one. Traditional card text is converted from Simplified with OpenCC. See [docs/I18N.md](docs/I18N.md).
 - **Fixed scenarios:** reproducible lobbies that demonstrate specific mechanics (see below).
 
 ## Requirements

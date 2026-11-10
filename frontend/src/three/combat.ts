@@ -7,6 +7,7 @@ import type { CombatScript, CombatStep } from '../core/combat-script';
 import { CardKit, CardObject, faceOf } from './entities';
 import { Clock, drive, easeIn, pose, type Key as Frame, type Pose } from './motion';
 import { burstLabel, Labels, Particles } from './fx';
+import { t as messages } from '../i18n';
 import type { Key, Placement } from './reconciler';
 
 export interface CombatTable {
@@ -56,7 +57,7 @@ export async function playCombat(t: CombatTable, script: CombatScript) {
     obj.shield = h.shield_hits > 0;
     if (h.absorbed) shatter(obj);
     if (!h.damage && !h.absorbed) return;
-    void t.labels.show(burstLabel(h.absorbed ? '抵挡' : '−' + h.damage, h.absorbed), () => obj.anchor(0, 0.16), [
+    void t.labels.show(burstLabel(h.absorbed ? messages().combat.blocked : '−' + h.damage, h.absorbed), () => obj.anchor(0, 0.16), [
       { opacity: 0, transform: 'scale(.48) rotate(-12deg)' },
       { opacity: 1, transform: 'scale(1.13) rotate(-4deg)', offset: .13 },
       { opacity: 1, transform: 'scale(1) rotate(-4deg)', offset: .78 },

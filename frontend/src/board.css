@@ -1,7 +1,11 @@
-*{box-sizing:border-box}body{margin:0;background:#180e0b;color:#ffe8b3;font:18px "PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden}button,select{font:inherit;color:inherit;cursor:pointer}button:disabled{cursor:default;filter:saturate(.35) brightness(.7)}[hidden]{display:none!important}
+/* Font stacks follow the page language; numbers keep Georgia everywhere. */
+:root{--sans:"PingFang SC","Microsoft YaHei",sans-serif;--serif:"Songti SC",serif}
+:root:lang(zh-TW){--sans:"PingFang TC","Microsoft JhengHei",sans-serif;--serif:"Songti TC",serif}
+:root:lang(en){--sans:system-ui,-apple-system,"Segoe UI",sans-serif;--serif:Georgia,serif}
+*{box-sizing:border-box}body{margin:0;background:#180e0b;color:#ffe8b3;font:18px var(--sans);overflow:hidden}button,select{font:inherit;color:inherit;cursor:pointer}button:disabled{cursor:default;filter:saturate(.35) brightness(.7)}[hidden]{display:none!important}
 #table{width:1440px;height:810px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(var(--scale,1));background:#6b452b perspective:1300px;isolation:isolate;user-select:none;touch-action:none;overflow:hidden}
 header,#tools,#phase,#hero,#end,#gold,#status,#seats{position:absolute}header{left:18px;top:15px;display:flex;gap:4px}header button,select{background:#312119;border:1px solid #a37c46;border-radius:6px;padding:4px 7px;font-size:14px}#phase,#gold,#status{background:linear-gradient(#543725,#2c1d18);box-shadow:inset 0 0 0 1px #c19a53,0 3px 5px #30180980;border:3px solid #422b1a;border-radius:14px;text-align:center}
-#phase{left:50%;top:113px;transform:translateX(-50%);padding:5px 26px;font:bold 22px "Songti SC",serif}
+#phase{left:50%;top:113px;transform:translateX(-50%);padding:5px 26px;font:bold 22px var(--serif)}
 #tools{right:142px;top:90px;display:flex;gap:7px}.control{background:linear-gradient(#8b4d80,#48253f);border:3px ridge #d5a965;padding:8px 16px;border-radius:12px;box-shadow:0 4px 0 #442b1e,0 6px 8px #34180680;font-weight:700;text-shadow:0 2px #32132b}.control:hover:enabled{filter:brightness(1.2)}#end{right:22px;top:387px}#end button{background:linear-gradient(#ffdc76,#b77f33);color:#38200f;text-shadow:none}#seats{left:22px;top:146px;display:grid;gap:8px;width:80px}.full{height:157px;max-width:120px;object-fit:contain;filter:drop-shadow(0 7px 4px #2f180f99);pointer-events:none}
 #hero{bottom:26px;left:66px;text-align:center;max-width:210px;font-weight:bold;text-shadow:0 2px #271605}#hero .full{height:100px;display:block;margin:auto}#hero button{font-size:13px}#gold{right:42px;bottom:64px;padding:7px 22px;color:#ffdc73;font-size:22px;font-weight:bold}#status{left:50%;transform:translateX(-50%);top:603px;padding:6px 20px;max-width:78%;white-space:nowrap;font-size:16px;pointer-events:none}
 #choices{position:absolute;inset:22% 13% auto;z-index:12;background:#2f201afa;border:3px ridge #be995b;border-radius:20px;padding:22px;text-align:center}#choices button{margin:10px 6px}#choices .full{display:block;margin:auto}#tooltip{position:absolute;z-index:14;pointer-events:none;width:245px;padding:12px 15px;background:#281c19f5;border:2px solid #c49c5e;border-radius:10px;font-size:16px;box-shadow:0 6px 15px #0006}#arrow{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:9;filter:drop-shadow(0 2px 2px #70411b)}
@@ -15,7 +19,7 @@ header,#tools,#phase,#hero,#end,#gold,#status,#seats{position:absolute}header{le
 .combat-burst::before,.combat-burst::after{content:"";position:absolute;inset:0;clip-path:var(--burst-shape);background:#64340d}
 .combat-burst::after{inset:4px;background:radial-gradient(ellipse,#fff8a0 12%,#ffcb35 49%,#c8750a 80%)}
 .combat-burst b{z-index:1;color:white;font:1000 36px/1 Georgia,serif;-webkit-text-stroke:4px #392216;paint-order:stroke fill;text-shadow:0 3px #392216}
-.combat-burst.absorbed b{font:900 22px/1 "PingFang SC",sans-serif}
+.combat-burst.absorbed b{font:900 22px/1 var(--sans)}
 .combat-burst.absorbed::after{background:radial-gradient(ellipse,#fffbd8,#ffe28b 45%,#d89a23)}
 
 
@@ -83,3 +87,6 @@ header,#tools,#phase,#hero,#end,#gold,#status,#seats{position:absolute}header{le
 #choices .choice-text {font-size:14px;line-height:20px;font-weight:400;white-space:pre-line;text-shadow:none;color:#ffe8b3}
 #tooltip {white-space:pre-line}
 #tooltip.wide {width:360px;font-size:14px;line-height:21px}
+
+/* English labels run longer; compact the tool buttons so they clear the phase label. */
+:root:lang(en) #tools .control {padding:6px 10px;font-size:15px}

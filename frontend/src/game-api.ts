@@ -16,6 +16,11 @@ export interface Card {
   id: string;
   name_zh: string;
   text_zh: string;
+  /** English name. Read card strings through cardName and cardText, which follow the UI language. */
+  name?: string;
+  /** Traditional Chinese (Taiwan) name and text, converted from zh-CN by the backend. */
+  name_tw?: string;
+  text_tw?: string;
   /** English rules text; marks such as Deathrattle are read from it. */
   text?: string;
   type?: string;

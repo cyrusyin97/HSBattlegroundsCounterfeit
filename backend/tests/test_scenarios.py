@@ -180,3 +180,11 @@ def test_late_shows_opponent_powers_and_trinkets(start):
 def test_all_tribe_minions_count_for_every_lobby_tribe():
     board = [{"races": ["MURLOC"]}, {"races": ["ALL"]}, {"races": []}, {"races": ["MECHANICAL", "MURLOC"]}]
     assert race_counts(board, ["MURLOC", "DEMON"]) == {"MURLOC": 3, "DEMON": 1, "MECHANICAL": 1}
+
+
+def test_cards_carry_taiwan_text(start):
+    me = start("mechanics")["state"]["me"]
+    bandit = next(c for c in me["board"] if c["id"] == "BG28_582")
+    assert bandit["name_tw"] == "重傷的強盜"
+    assert bandit["text_tw"].startswith("發動（0）：棄掉一張牌")
+    assert all(c["name_tw"] for c in me["hand"])
