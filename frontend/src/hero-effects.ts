@@ -148,6 +148,9 @@ export async function finishHeroCombat(replay: Combat, snapshot: GameSnapshot) {
       {transform:pose(0,3,0,6),offset:.88},
       {transform:pose(0,0,0,0)},
     ], 500));
+    // The return animation now holds the pose. Left in place, the contact pose would
+    // reappear the moment that animation ends, while the burst is still playing.
+    attacker.style.transform = '';
     await Promise.all(effects);
     if (after && after.health <= 0) {
       defenderPanel.classList.add('hero-defeated');
