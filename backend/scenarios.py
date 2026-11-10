@@ -12,13 +12,22 @@ SCENARIOS = {
     "collision": "结束回合，观察 58 与 100 点伤害同时命中，以及双方剩余血量。",
     "reborn": "结束回合，观察复活的骑兵死亡后以 1 点生命值复生。",
     "hero_damage": "结束回合，观察敌方英雄攻击，己方 1 点护甲破碎并损失 1 点生命值。",
-    "mechanics": "第 3 回合、10 金币：把催眠机器人拖到拔线机上磁力吸附，使用黑暗之赐，或施放联盟旗帜做出抉择。",
+    "mechanics": "第 3 回合、10 金币：把催眠机器人拖到拔线机上磁力吸附，使用黑暗之赐，施放联盟旗帜做出抉择，或发动重伤的强盗弃掉一张手牌。",
+    "late": "第 10 回合的中盘对局：滑过左侧玩家列表查看各家排名、酒馆等级、英雄技能和饰品。",
 }
 
 
 def make_scenario(key: str):
     if key not in SCENARIOS:
         raise KeyError(key)
+    if key == "late":
+        # Scripted bots play every seat, the local one included, up to turn 10.
+        game = taverngym.Game(seed=6)
+        while json.loads(game.view(0))["turn"] < 10:
+            for seat in range(game.num_players):
+                if game.needs_action(seat):
+                    game.bot_play(seat)
+        return game
     game = taverngym.Game(seed=17)
     for seat in range(game.num_players):
         game.step(seat, json.loads(game.view(seat))["actions"]["CHOOSE"])
@@ -46,6 +55,7 @@ def make_scenario(key: str):
         minion("BGS_119", opponent, atk=3, hp=8)
     elif key == "mechanics":
         minion("BG29_611")
+        minion("BG28_582")
         game.debug(json.dumps(dict(cmd="add_minion", p=0, zone="hand", card="BG26_146")))
         game.debug(json.dumps(dict(cmd="add_spell", p=0, zone="hand", card="BG31_880")))
         # Dark Gifts unlock on turn 3 and cost 3 gold.

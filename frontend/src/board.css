@@ -60,14 +60,24 @@ header,#tools,#phase,#hero,#end,#gold,#status,#seats{position:absolute}header{le
 .seat-health {right:-10px;border-radius:45% 45% 42% 42%;background:linear-gradient(125deg,#ed6861,#a11a21 55%,#5b101b)}
 .seat.you .seat-face {border-color:#ffcc67;box-shadow:0 0 0 2px #ffcc67,0 0 12px #ffcc6799}
 .seat.out {filter:grayscale(1) brightness(.55)}
+.seat:focus-visible {outline:2px solid #ffcc67;outline-offset:4px;border-radius:8px}
+.seat-rank {position:absolute;left:-19px;top:2px;font:bold 13px Georgia,serif;color:#ffe4b1;text-shadow:0 1px 2px #000}
+.seat.next .seat-face {border-color:#ff8a6b;box-shadow:0 0 0 2px #ff8a6b88}
 /* Tavern tier as stars above the phase label. */
 #tier {position:absolute;left:50%;top:76px;transform:translateX(-50%);display:flex;gap:4px;padding:4px 12px;border-radius:12px;background:#1c100ad1;box-shadow:inset 0 0 0 1px #c19a53}
 #tier svg {width:24px;height:24px}
 .in-combat #tier {display:none}
 
 /* Choice panel: each option names itself and spells out what it does. */
-#choices .choice-title {display:block;margin-bottom:4px;font-size:20px;font-weight:700}
+#choices .choice-head {display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:4px}
+#choices .choice-title {font-size:20px;font-weight:700}
+#choices .fold {margin:0;padding:3px 10px;border:1px solid #a37c46;border-radius:6px;background:#312119;color:#ffe8b3;font-size:14px}
+#choices .fold:hover {filter:brightness(1.25)}
+#choices.folded {inset:12px auto auto 50%;translate:-50% 0;padding:8px 14px}
+#choices.folded .choice {display:none}
+#choices.folded .choice-head {margin:0}
 #choices .choice {display:inline-flex;flex-direction:column;align-items:center;gap:6px;width:210px;vertical-align:top}
 #choices .choice-name {font-weight:700}
 #choices .choice-text {font-size:14px;line-height:20px;font-weight:400;white-space:pre-line;text-shadow:none;color:#ffe8b3}
 #tooltip {white-space:pre-line}
+#tooltip.wide {width:360px;font-size:14px;line-height:21px}

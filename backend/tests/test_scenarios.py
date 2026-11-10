@@ -139,10 +139,10 @@ def test_hero_damage_replay_preserves_pre_damage_state(start):
 
 def test_mechanics(start):
     snapshot = start("mechanics")
-    mech, = snapshot["state"]["me"]["board"]
+    mech = next(c for c in snapshot["state"]["me"]["board"] if c["id"] == "BG29_611")
     magnet = next(c for c in snapshot["state"]["me"]["hand"] if c["id"] == "BG26_146")
     attached = step(snapshot, "magnetize", hand_id=magnet["hid"], target_id=mech["eid"])
-    merged, = attached["state"]["me"]["board"]
+    merged = next(c for c in attached["state"]["me"]["board"] if c["eid"] == mech["eid"])
     assert merged["atk"] > mech["atk"] and merged["hp"] > mech["hp"]
 
     # Each mechanic starts from a fresh copy of the scenario.
@@ -153,3 +153,20 @@ def test_mechanics(start):
     choose = step(start("mechanics"), "cast")
     assert choose["state"]["me"]["pending"]["kind"] == "choose_one"
     assert "；或者" in choose["state"]["me"]["pending"]["source"]["text_zh"]
+
+    # Activating the discarder targets hand cards; the chosen one leaves the hand.
+    snapshot = start("mechanics")
+    bandit = next(c for c in snapshot["state"]["me"]["board"] if c["id"] == "BG28_582")
+    aiming = step(snapshot, "activate", entity_id=bandit["eid"])
+    hand = {c["hid"] for c in aiming["state"]["me"]["hand"]}
+    targets = aiming["state"]["me"]["pending"]["targets"]
+    assert targets and set(targets) <= hand
+    discarded = step(aiming, "target", target_id=targets[0])
+    assert targets[0] not in {c["hid"] for c in discarded["state"]["me"]["hand"]}
+
+
+def test_late_shows_opponent_powers_and_trinkets(start):
+    opponents = start("late")["state"]["opponents"]
+    assert all(op["hero_powers"][0]["kind"] == "hero_power" for op in opponents)
+    assert any(op["trinkets"] for op in opponents)
+    assert all("win_streak" in op for op in opponents)

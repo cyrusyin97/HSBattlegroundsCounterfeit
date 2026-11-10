@@ -204,7 +204,7 @@ Implemented interactions include the following.
 
 Dragging captures the snapshot version. Valid drops submit a semantic action, and confirmed snapshots determine final placement. Invalid drops animate back. Prices and availability are read from the engine, including the shop's health-payment indicator where supplied.
 
-Dragging a Magnetic hand minion onto the middle of a legal friendly minion's slot magnetizes it (the legal targets are outlined while dragging); between minions it is played as usual. The Dark Gift button explains its cost, effect and remaining uses on hover, Dark Gift discover options list each minion's gift, and tooltips list attached cards (`core/describe.ts`). Choose One choices show their two modes, parsed from the card text because the engine offers the same card twice. Generic choices cover part of the engine's larger systems. Dedicated trinket, quest, reward, secret, buddy, scouting, and special-target interfaces need further coverage work. The TypeScript snapshot type also represents a narrower subset than the backend projection.
+Dragging a Magnetic hand minion onto the middle of a legal friendly minion's slot magnetizes it (the legal targets are outlined while dragging); between minions it is played as usual. The Dark Gift button explains its cost, effect and remaining uses on hover, Dark Gift discover options list each minion's gift, and tooltips list attached cards (`core/describe.ts`). Choose One choices show their two modes, parsed from the card text because the engine offers the same card twice. Every choice panel folds to its title bar at the top of the screen (收起/展开) so the table stays visible; a new choice opens unfolded. Target choices may name hand cards by hand ID (discard activations such as 重伤的强盗): those hand cards are outlined and picked by clicking (`targetAction` in `core/intents.ts`). Hovering or focusing a roster portrait shows that player's rank, tavern tier, health and armor, win streak, last combat damage, hero power and trinkets; the backend adds each opponent's hero power from the card catalog by the hero's `hero_power_id`, since the seat view omits it. Generic choices cover part of the engine's larger systems. Dedicated trinket, quest, reward, secret, buddy, scouting, and special-target interfaces need further coverage work. The TypeScript snapshot type also represents a narrower subset than the backend projection.
 
 ## 7. Tavern effects
 
@@ -266,7 +266,8 @@ Scenarios use seed 17, select the first offered hero for each seat, inject demon
 | `collision` | First exchange deals 58 and 100 simultaneously, leaving 48 and 54 health on the respective recipients, then a second exchange kills both |
 | `reborn` | Watch Risen Rider return with 1 health and a new entity ID |
 | `hero_damage` | End turn, take 2 hero damage, break 1 armor, and change health from 30 to 29 |
-| `mechanics` | Turn 3 with 10 gold: drag 催眠机器人 onto 拔线机 to magnetize, use the Dark Gift button, or cast 联盟旗帜 for a Choose One |
+| `mechanics` | Turn 3 with 10 gold: drag 催眠机器人 onto 拔线机 to magnetize, use the Dark Gift button, cast 联盟旗帜 for a Choose One, or activate 重伤的强盗 and click a hand card to discard it |
+| `late` | Scripted bots play every seat (seed 6) to turn 10; hover the roster to read each player's rank, tier, hero power and trinkets |
 | Random game | Select `random` in the UI, or omit the API scenario parameter, to exercise ordinary hero selection and bot play |
 
 Example URLs use `?scenario=collision` or `?scenario=hero_damage` on either the development or combined-preview origin. Restarting a scenario creates a new independent session.

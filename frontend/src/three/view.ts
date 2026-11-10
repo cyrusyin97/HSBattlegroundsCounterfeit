@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import type { Action } from '../game-api';
 import { byId, localPoint } from '../pieces';
-import { magnetTargets, resolveDrop, resolveTap, matchAction, type Zone } from '../core/intents';
+import { magnetTargets, resolveDrop, resolveTap, matchAction, targetAction, type Zone } from '../core/intents';
 import { DROP_HINTS, type CardView, type ViewHost } from '../view';
 import { Stage } from './stage';
 import { insertionIndex, slots, ZONES, zoneAt } from './layout';
@@ -191,7 +191,7 @@ export function createThreeView(host: ViewHost): CardView {
       const obj = cards.get(p.key);
       if (!obj) continue;
       // Spell targets keep their outline; magnet targets add theirs while dragging.
-      obj.targetable = targets.includes(p.id) || !!matchAction(host.snapshot, 'target', { target_id: p.id });
+      obj.targetable = targets.includes(p.id) || !!targetAction(host.snapshot, p);
       obj.hovered = obj === over;
     }
   }
@@ -287,8 +287,7 @@ export function createThreeView(host: ViewHost): CardView {
           refreshed.arriving.push(obj);
         }
         obj.show(placement, faceOf(placement));
-        const eid = placement.card.eid;
-        obj.targetable = eid !== undefined && !!matchAction(snapshot, 'target', { target_id: eid });
+        obj.targetable = !!targetAction(snapshot, placement);
       }
       placed = new Map(next.map(p => [p.key, p]));
       setHover(undefined);

@@ -94,3 +94,9 @@ test('a Magnetic hand minion dropped on a legal minion attaches to it', () => {
   assert.deepEqual(resolveDrop(s, hand, 'board', 1), { kind: 'play', hand_id: 3, position: 1 });
   assert.deepEqual(magnetTargets(s, 3), [10]);
 });
+
+test('a discard target picks the hand card by its hand ID', () => {
+  const s = snapshot([{ kind: 'target', target_id: 3 }, { kind: 'cancel' }], { pending: { kind: 'target', targets: [3] } });
+  assert.deepEqual(resolveTap(s, hand), { kind: 'target', target_id: 3 });
+  assert.equal(resolveTap(s, board), undefined);
+});

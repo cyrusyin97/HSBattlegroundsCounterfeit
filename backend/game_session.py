@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 logger = logging.getLogger(__name__)
+CATALOG = {card["id"]: card for card in json.loads(taverngym.catalog_json())}
 
 
 class ActionRequest(BaseModel):
@@ -110,12 +111,16 @@ def player_snapshot(game, game_id, version):
     legal = semantic_actions(raw)
     state = select(raw, "seat turn phase version lobby_races deity paradox alive")
     state["me"] = select(raw["me"], "hero hero_powers health armor alive placement tier gold max_gold "
-                         "upgrade_price refresh_price minion_price frozen ended_turn board hand shop "
+                         "win_streak upgrade_price refresh_price minion_price frozen ended_turn board hand shop "
                          "pending casting cancellable trinkets quests rewards secrets next_opponent "
                          "last_opponent next_is_ghost effects buddy_button dark_gift deity chronum_balance")
-    state["opponents"] = [select(op, "id hero health armor tier alive placement last_damage "
-                                    "last_warband seen_board seen_turn is_next_opponent")
+    state["opponents"] = [select(op, "id hero health armor tier alive placement last_damage win_streak "
+                                    "trinkets last_warband seen_board seen_turn is_next_opponent")
                           for op in raw["opponents"]]
+    for op in state["opponents"]:
+        # Opponents' powers are public at the table but absent from the seat view; read the hero's default.
+        power = CATALOG.get((op.get("hero") or {}).get("hero_power_id"))
+        op["hero_powers"] = [power] if power else []
     combat = next((r for r in raw["combats"] if 0 in (r["a"], r["b"])), None)
     if combat is not None:
         # Text debug logs are not a player-facing protocol. Attacks identify both entities.

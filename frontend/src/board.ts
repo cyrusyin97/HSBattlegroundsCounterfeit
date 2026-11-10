@@ -16,6 +16,8 @@ let snapshot: GameSnapshot;
 let busy = false;
 let spell: Card | undefined;
 let view: CardView;
+/** The choice panel is folded to its title so the table stays visible. */
+let folded = false;
 const match = (kind: Action['kind'], fields?: Record<string, number>) => matchAction(snapshot, kind, fields);
 const message = (s: string) => { status.textContent = s; };
 const host: ViewHost = {
@@ -26,20 +28,25 @@ const host: ViewHost = {
   tooltip: (card, x = 0, y = 0) => showTip(card && describe(card).join('\n'), x, y),
 };
 
-/** Shows `text` in the tooltip at a board coordinate, or hides it. */
-function showTip(text: string | undefined, x = 0, y = 0) {
+/** Shows `text` in the tooltip at a board coordinate, or hides it. A wide tip holds a player summary. */
+function showTip(text: string | undefined, x = 0, y = 0, wide = false) {
   const tip = byId('tooltip');
   tip.hidden = !text;
   if (!text) return;
   tip.textContent = text;
-  tip.style.left = Math.min(x+9,1180)+'px'; tip.style.top = Math.min(y,615)+'px';
+  tip.classList.toggle('wide', wide);
+  tip.style.left = Math.min(x+9,wide?1030:1180)+'px'; tip.style.top = Math.min(y,wide?480:615)+'px';
 }
 
-/** Hover or focus on a HUD control shows its explanation beside it. */
-function explain(el: HTMLElement, text: string) {
+/** Hover or focus on a HUD control shows its explanation below it, or to its right. */
+function explain(el: HTMLElement, text: string, side: 'below' | 'right' = 'below') {
   el.setAttribute('aria-description', text);
   const show = () => {
     const r = el.getBoundingClientRect();
+    if (side === 'right') {
+      const p = localPoint(r.right, r.top);
+      return showTip(text, p.x + 8, Math.max(0, p.y - 20), true);
+    }
     const p = localPoint(r.left, r.bottom);
     showTip(text, Math.max(0, p.x - 9), p.y + 6);
   };
@@ -92,17 +99,35 @@ function control(parent: string, label: string, action?: Action) {
 
 const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7 7.5.6-5.7 4.8 1.8 7.3L12 17.8l-6.6 3.9 1.8-7.3L1.5 9.6 9 9z" fill="#ffd34d" stroke="#7a4a10" stroke-width="1.2"/></svg>';
 
-/** A roster entry: hero portrait with armor and health. The name is in the title only. */
-function seat(s: { id: number; hero: Card | null; health: number; armor: number; alive: boolean }) {
+type Player = GameSnapshot['state']['opponents'][number];
+
+/** The public facts about one player: standing, tier, form, hero power and trinkets. */
+function summary(s: Player, rank: number) {
   const you = s.id === snapshot.state.seat;
-  const el = badge('seat' + (you ? ' you' : '') + (s.alive ? '' : ' out'), '');
+  const tags = [you && '你', s.is_next_opponent && '下一个对手', !s.alive && '已出局'].filter(Boolean);
+  const form = [s.win_streak ? '连胜 ' + s.win_streak + ' 场' : '',
+    s.last_damage ? '上次交战' + (s.last_damage > 0 ? '造成 ' : '受到 ') + Math.abs(s.last_damage) + ' 点伤害' : ''].filter(Boolean);
+  return [
+    '第 ' + rank + ' 名 · ' + (s.hero?.name_zh || '选将中') + (tags.length ? '（' + tags.join('，') + '）' : ''),
+    '酒馆 ' + '★'.repeat(s.tier) + ' · 生命 ' + s.health + ' · 护甲 ' + s.armor,
+    form.join(' · '),
+    ...(s.hero_powers ?? []).map(p => '英雄技能 · ' + p.name_zh + '：' + p.text_zh),
+    ...(s.trinkets?.length ? s.trinkets.map(t => '饰品 · ' + t.name_zh + '：' + t.text_zh) : ['饰品 · 无']),
+  ].filter(Boolean).join('\n');
+}
+
+/** A roster entry: rank, hero portrait, armor and health. Hover or focus shows the player's summary. */
+function seat(s: Player, rank: number) {
+  const you = s.id === snapshot.state.seat;
+  const el = badge('seat' + (you ? ' you' : '') + (s.alive ? '' : ' out') + (s.is_next_opponent ? ' next' : ''), '');
   el.dataset.id = String(s.id);
-  el.title = (you ? '你 · ' : '') + (s.hero?.name_zh || '选将中') + (s.alive ? '' : ' · 出局');
+  el.tabIndex = 0;
   el.setAttribute('role', 'img');
-  el.ariaLabel = el.title + '，护甲 ' + s.armor + '，生命 ' + s.health;
+  el.ariaLabel = '第 ' + rank + ' 名，' + (you ? '你，' : '') + (s.hero?.name_zh || '选将中') + '，护甲 ' + s.armor + '，生命 ' + s.health;
   const face = badge('seat-face', '');
   if (s.hero) void loadCardImage(s.hero.id).then(img => { img.alt = ''; face.append(img); });
-  el.append(face, badge('seat-armor', s.armor), badge('seat-health', s.health));
+  el.append(badge('seat-rank', rank), face, badge('seat-armor', s.armor), badge('seat-health', s.health));
+  explain(el, summary(s, rank), 'right');
   return el;
 }
 
@@ -111,8 +136,10 @@ function standings() {
   const seats = byId('seats');
   const was = new Map([...seats.children].map(el => [(el as HTMLElement).dataset.id, el.getBoundingClientRect().top]));
   const { me, seat: id, opponents } = snapshot.state;
-  const roster = [{ id, hero: me.hero, health: me.health, armor: me.armor, alive: me.alive }, ...opponents];
-  seats.replaceChildren(...ranked(roster).map(seat));
+  const roster: Player[] = [{ id, hero: me.hero, health: me.health, armor: me.armor, alive: me.alive, tier: me.tier,
+    placement: me.placement, win_streak: me.win_streak, hero_powers: me.hero_powers, trinkets: me.trinkets }, ...opponents];
+  // Eliminated players keep the place they finished in.
+  seats.replaceChildren(...ranked(roster).map((p, i) => seat(p, p.alive || !p.placement ? i + 1 : p.placement)));
   const scale = boardScale();
   for (const el of seats.children as HTMLCollectionOf<HTMLElement>) {
     const top = was.get(el.dataset.id);
@@ -154,7 +181,11 @@ function render(transition?: Transition) {
   control('end','结束回合',match('end_turn'));
   if (match('cancel')) control('end','取消',match('cancel'));
   const choosing = snapshot.legal_actions.filter(a=>a.kind==='choose');
-  byId('choices').hidden = !choosing.length;
+  const panel = byId('choices');
+  panel.hidden = !choosing.length;
+  // A new choice opens unfolded; folding lasts until it is answered.
+  if (!choosing.length) folded = false;
+  panel.classList.toggle('folded', folded);
   if (choosing.length) {
     const pending = me.pending;
     // Choose One offers the same card twice; its text names the two modes.
@@ -162,7 +193,18 @@ function render(transition?: Transition) {
     const title = phase === 'hero_select' ? '选择英雄'
       : modes ? '抉择 · ' + (pending?.source?.name_zh ?? '')
       : pending?.source?.kind === 'dark_gift' ? '黑暗之赐 · 选择一张随从' : '请选择一项';
-    byId('choices').append(badge('choice-title', title));
+    const head = badge('choice-head', '');
+    const fold = document.createElement('button');
+    fold.className = 'fold';
+    const label = () => {
+      fold.textContent = folded ? '展开 ▾' : '收起 ▴';
+      fold.ariaExpanded = String(!folded);
+      panel.classList.toggle('folded', folded);
+    };
+    label();
+    fold.onclick = () => { folded = !folded; label(); };
+    head.append(badge('choice-title', title), fold);
+    panel.append(head);
     for (const a of choosing) {
       const c = pending?.options?.[a.option];
       const btn = control('choices', '', a);
@@ -177,8 +219,13 @@ function render(transition?: Transition) {
     }
   }
   if (me.pending?.kind === 'target') {
-    const casting = me.hand.find(c=>c.hid===me.casting) ?? spell;
-    message([casting?.name_zh,casting?.text_zh,'请选择目标 · 右键取消'].filter(Boolean).join('　'));
+    const hand = new Set(me.hand.map(c => c.hid));
+    if (me.pending.targets?.length && me.pending.targets.every(t => hand.has(t))) {
+      message('选择一张手牌弃掉 · 右键取消');
+    } else {
+      const casting = me.hand.find(c=>c.hid===me.casting) ?? spell;
+      message([casting?.name_zh,casting?.text_zh,'请选择目标 · 右键取消'].filter(Boolean).join('　'));
+    }
   } else {
     spell=undefined;
     message(!me.alive || phase==='game_over' ? '对局结束 · 第 '+ me.placement +' 名' : '拖入手牌购买 · 拖至战团出牌 · 拖回酒馆出售');

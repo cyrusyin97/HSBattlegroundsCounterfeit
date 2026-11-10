@@ -16,10 +16,20 @@ export function matchAction(snapshot: GameSnapshot, kind: Action['kind'], fields
     a.kind === kind && Object.entries(fields).every(([k, v]) => Reflect.get(a, k) === v));
 }
 
+/**
+ * The pending target choice that picking `ref` answers. Minions are named by entity ID;
+ * hand cards (a discard, for example) by their hand ID.
+ */
+export function targetAction(snapshot: GameSnapshot, { zone, id, card }: CardRef) {
+  if (snapshot.state.me.pending?.kind !== 'target') return;
+  const target = zone === 'hand' ? id : card.eid;
+  return target === undefined ? undefined : matchAction(snapshot, 'target', { target_id: target });
+}
+
 export function resolveTap(snapshot: GameSnapshot, { zone, id, card }: CardRef): Action | undefined {
   const match = (kind: Action['kind'], fields?: Record<string, number>) => matchAction(snapshot, kind, fields);
   const me = snapshot.state.me;
-  if (me.pending?.kind === 'target') return card.eid === undefined ? undefined : match('target', { target_id: card.eid });
+  if (me.pending?.kind === 'target') return targetAction(snapshot, { zone, id, card });
   if (zone === 'shop') return match('buy', { shop_id: id });
   if (zone === 'hand') return match('cast', { hand_id: id }) ?? match('play', { hand_id: id, position: me.board.length });
   return match('activate', { entity_id: id });
