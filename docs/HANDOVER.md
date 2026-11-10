@@ -282,7 +282,7 @@ There is no committed automated browser test suite or visual regression baseline
 
 ## 11. AI opponents
 
-Offline opponents use the pinned engine's built-in heuristic `bot_action(seat)`. The Python adapter has no custom learned policy or separate AI service. The upstream policy is cheap and deterministic given game state and RNG, which makes it useful for reproducible POC play.
+Offline opponents use the pinned engine's built-in heuristic `bot_action(seat)` through a replaceable per-seat policy (`backend/bots.py`, design and evaluation in `docs/BOTS.md`). Policies see only the seat's public projection (`backend/projection.py`, shared with the player snapshot), and errors, illegal choices and slow decisions fall back to the heuristic. `python -m backend.evaluate --policy <name>` compares a policy with the heuristic on fixed seeds. No learned policy or remote AI service is connected yet. The upstream policy is cheap and deterministic given game state and RNG, which makes it useful for reproducible POC play.
 
 Its rough minion value is attack plus health plus three times tier, with a golden bonus of 6 and a bonus of 3 for each of Divine Shield, Taunt, Reborn, Windfury, and Venomous. Spells receive a simple tier-based value. Shopping adds a bonus of 15 when another copy is already owned.
 
