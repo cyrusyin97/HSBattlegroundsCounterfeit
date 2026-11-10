@@ -27,8 +27,11 @@ export interface CardView {
   /** Minion combat on the table. Hero panels and the result text belong to the controller. */
   playCombat(script: CombatScript): Promise<void>;
   shopEffect(kind: ShopAction, before: GameSnapshot, after: GameSnapshot): Promise<void>;
-  /** Board coordinate where the targeting arrow starts, when the cast card is shown. */
-  castOrigin(): { x: number; y: number } | undefined;
+  /**
+   * Board coordinate where the targeting arrow starts: the card that opened the choice
+   * (`from`, by default the spell being cast), when it is shown.
+   */
+  castOrigin(from?: { zone: 'hand' | 'board'; id: number }): { x: number; y: number } | undefined;
   resize(scale: number): void;
 }
 

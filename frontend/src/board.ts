@@ -17,6 +17,8 @@ let snapshot: GameSnapshot;
 let busy = false;
 let spell: Card | undefined;
 let view: CardView;
+/** What opened the pending target choice, so its arrow starts there. */
+let aimFrom: { zone: 'hand' | 'board'; id: number } | { power: number } | undefined;
 /** The choice panel is folded to its title so the table stays visible. */
 let folded = false;
 const match = (kind: Action['kind'], fields?: Record<string, number>) => matchAction(snapshot, kind, fields);
@@ -64,14 +66,31 @@ function lock(value: boolean) {
   for (const id of ['tools','end','choices','hero']) byId(id).inert = value;
 }
 function clearArrow() { byId('curve').removeAttribute('d'); }
+/** The arrow starts at whatever opened the target choice: a hand card, a minion or a hero power. */
+function arrowStart() {
+  if (aimFrom && 'power' in aimFrom) {
+    const button = byId('hero').querySelector(`[data-slot="${aimFrom.power}"]`);
+    if (button) {
+      const r = button.getBoundingClientRect();
+      return localPoint(r.left + r.width / 2, r.top);
+    }
+  }
+  return view.castOrigin(aimFrom && !('power' in aimFrom) ? aimFrom : undefined) ?? { x: 770, y: 685 };
+}
 function drawArrow(x: number, y: number) {
-  const start = view.castOrigin() ?? { x: 770, y: 685 };
-  byId('curve').setAttribute('d', 'M ' + start.x + ' ' + start.y + ' Q ' + (start.x+105) + ' ' + (y+20) + ' ' + x + ' ' + y);
+  const start = arrowStart();
+  // Bow the curve upward by a quarter of its length, whichever way it points.
+  const bow = Math.hypot(x - start.x, y - start.y) / 4;
+  const cx = (start.x + x) / 2, cy = Math.min(start.y, y) - bow;
+  byId('curve').setAttribute('d', 'M ' + start.x + ' ' + start.y + ' Q ' + cx + ' ' + cy + ' ' + x + ' ' + y);
 }
 async function commit(action: Action) {
   if (busy || !snapshot.legal_actions.includes(action)) return;
   const before = snapshot;
   if (action.kind === 'cast') spell = before.state.me.hand.find(c => c.hid === action.hand_id);
+  if (action.kind === 'cast') aimFrom = { zone: 'hand', id: action.hand_id };
+  else if (action.kind === 'activate') aimFrom = { zone: 'board', id: action.entity_id };
+  else if (action.kind === 'hero_power') aimFrom = { power: action.slot };
   lock(true); clearArrow(); host.tooltip();
   message('正在结算…');
   try {
@@ -172,7 +191,11 @@ function render(transition?: Transition) {
   if (me.hero) {
     const parent = byId('hero');
     renderHeroPanel(parent, me);
-    me.hero_powers.forEach((p,i) => explain(control('hero',p.name_zh,match('hero_power',{slot:i})), p.name_zh+' · '+p.text_zh));
+    me.hero_powers.forEach((p,i) => {
+      const button = control('hero',p.name_zh,match('hero_power',{slot:i}));
+      button.dataset.slot = String(i);
+      explain(button, p.name_zh+' · '+p.text_zh);
+    });
   }
   view.render(transition);
   control('tools','升本 '+me.upgrade_price,match('upgrade')).dataset.action='upgrade';
@@ -233,6 +256,7 @@ function render(transition?: Transition) {
     }
   } else {
     spell=undefined;
+    aimFrom=undefined;
     message(!me.alive || phase==='game_over' ? '对局结束 · 第 '+ me.placement +' 名' : '拖入手牌购买 · 拖至战团出牌 · 拖回酒馆出售');
   }
 }

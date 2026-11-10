@@ -320,10 +320,12 @@ export function createThreeView(host: ViewHost): CardView {
       }
       return effects.upgrade(effectTable, after.state.me.tier, shopObjects());
     },
-    castOrigin() {
+    castOrigin(from) {
       const casting = host.snapshot.state.me.casting;
-      const obj = casting === null ? undefined : cards.get(`hand:${casting}`);
-      return obj && !obj.removing ? obj.anchor(0, 1) : undefined;
+      const source = from ?? (casting === null ? undefined : { zone: 'hand' as const, id: casting });
+      const obj = source && cards.get(`${source.zone}:${source.id}`);
+      // A hand card points from its top edge; a minion on the table from its middle.
+      return obj && !obj.removing ? obj.anchor(0, source.zone === 'hand' ? 1 : 0) : undefined;
     },
     resize: scale => stage.resize(scale),
   };
