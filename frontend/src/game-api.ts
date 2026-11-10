@@ -1,3 +1,4 @@
+import type { Warband } from './core/warband';
 /** Local player protocol. Submit an object from the current snapshot's legal_actions. */
 export type Action =
   | { kind: 'end_turn' | 'refresh' | 'freeze' | 'upgrade' | 'dark_gift' | 'cancel' }
@@ -92,10 +93,11 @@ export interface GameSnapshot {
       dark_gift?: { available: boolean; uses: number; max_uses: number; cost: number; unlock_turn: number };
       trinkets?: Card[];
       win_streak?: number;
+      warband?: Warband;
     };
     opponents: (HeroState & {
       id: number; alive: boolean; placement?: number; win_streak?: number; last_damage?: number;
-      is_next_opponent?: boolean; hero_powers?: Card[]; trinkets?: Card[];
+      is_next_opponent?: boolean; hero_powers?: Card[]; trinkets?: Card[]; warband?: Warband;
     })[];
   };
 }

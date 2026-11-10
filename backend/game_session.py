@@ -1,6 +1,7 @@
 """A single local player and seven TavernGym opponents, with atomic client commands."""
 import json
 import logging
+from collections import Counter
 from threading import Lock
 from uuid import uuid4
 
@@ -9,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 logger = logging.getLogger(__name__)
-CATALOG = {card["id"]: card for card in json.loads(taverngym.catalog_json())}
 
 
 class ActionRequest(BaseModel):
@@ -106,6 +106,15 @@ def targeted_spells(game, legal):
     return found
 
 
+def race_counts(board, lobby):
+    """Minions per tribe on a warband. An all-tribe minion counts once for every lobby tribe."""
+    counts = Counter()
+    for minion in board:
+        races = minion.get("races") or []
+        counts.update(lobby if "ALL" in races else races)
+    return dict(counts)
+
+
 def player_snapshot(game, game_id, version):
     raw = json.loads(game.view(0))  # Debug view also contains private data of the other seats.
     legal = semantic_actions(raw)
@@ -117,10 +126,13 @@ def player_snapshot(game, game_id, version):
     state["opponents"] = [select(op, "id hero health armor tier alive placement last_damage win_streak "
                                     "trinkets last_warband seen_board seen_turn is_next_opponent")
                           for op in raw["opponents"]]
-    for op in state["opponents"]:
-        # Opponents' powers are public at the table but absent from the seat view; read the hero's default.
-        power = CATALOG.get((op.get("hero") or {}).get("hero_power_id"))
-        op["hero_powers"] = [power] if power else []
+    lobby = raw.get("lobby_races") or []
+    state["me"]["warband"] = {"size": len(raw["me"]["board"]), "races": race_counts(raw["me"]["board"], lobby)}
+    for op, seen in zip(state["opponents"], raw["opponents"]):
+        # Hero powers are public at the table but absent from this seat's view, so read each
+        # opponent's own seat. Their warband is reduced to tribe counts; the minions stay hidden.
+        op["hero_powers"] = json.loads(game.view(op["id"]))["me"]["hero_powers"]
+        op["warband"] = {"size": len(seen["board"]), "races": race_counts(seen["board"], lobby)}
     combat = next((r for r in raw["combats"] if 0 in (r["a"], r["b"])), None)
     if combat is not None:
         # Text debug logs are not a player-facing protocol. Attacks identify both entities.

@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from backend import main
+from backend.game_session import race_counts
 from backend.scenarios import SCENARIOS
 
 client = TestClient(main.app)
@@ -168,5 +169,14 @@ def test_mechanics(start):
 def test_late_shows_opponent_powers_and_trinkets(start):
     opponents = start("late")["state"]["opponents"]
     assert all(op["hero_powers"][0]["kind"] == "hero_power" for op in opponents)
+    # Seat 1 is 塞纳留斯 in this game; the power comes from that seat, not the catalog default.
+    assert opponents[0]["hero_powers"][0]["name_zh"] == "古树的智慧"
+    assert opponents[0]["warband"] == {"size": 7, "races": {"ELEMENTAL": 2, "MURLOC": 4, "ABERRATION": 1}}
+    assert "board" not in opponents[0]
     assert any(op["trinkets"] for op in opponents)
     assert all("win_streak" in op for op in opponents)
+
+
+def test_all_tribe_minions_count_for_every_lobby_tribe():
+    board = [{"races": ["MURLOC"]}, {"races": ["ALL"]}, {"races": []}, {"races": ["MECHANICAL", "MURLOC"]}]
+    assert race_counts(board, ["MURLOC", "DEMON"]) == {"MURLOC": 3, "DEMON": 1, "MECHANICAL": 1}

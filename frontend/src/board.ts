@@ -7,6 +7,7 @@ import { animateHeroVitals, renderHeroPanel } from './hero-effects';
 import { matchAction } from './core/intents';
 import { chooseOneModes, describe } from './core/describe';
 import { ranked } from './core/roster';
+import { warbandType } from './core/warband';
 import { execute } from './core/session';
 import { createThreeView } from './three/view';
 import { isShopAction, type CardView, type Transition, type ViewHost } from './view';
@@ -111,6 +112,7 @@ function summary(s: Player, rank: number) {
     '第 ' + rank + ' 名 · ' + (s.hero?.name_zh || '选将中') + (tags.length ? '（' + tags.join('，') + '）' : ''),
     '酒馆 ' + '★'.repeat(s.tier) + ' · 生命 ' + s.health + ' · 护甲 ' + s.armor,
     form.join(' · '),
+    s.warband?.size ? '阵容 · ' + warbandType(s.warband) + '（' + s.warband.size + ' 个随从）' : '阵容 · 无随从',
     ...(s.hero_powers ?? []).map(p => '英雄技能 · ' + p.name_zh + '：' + p.text_zh),
     ...(s.trinkets?.length ? s.trinkets.map(t => '饰品 · ' + t.name_zh + '：' + t.text_zh) : ['饰品 · 无']),
   ].filter(Boolean).join('\n');
@@ -123,10 +125,13 @@ function seat(s: Player, rank: number) {
   el.dataset.id = String(s.id);
   el.tabIndex = 0;
   el.setAttribute('role', 'img');
-  el.ariaLabel = '第 ' + rank + ' 名，' + (you ? '你，' : '') + (s.hero?.name_zh || '选将中') + '，护甲 ' + s.armor + '，生命 ' + s.health;
+  el.ariaLabel = '第 ' + rank + ' 名，' + (you ? '你，' : '') + (s.hero?.name_zh || '选将中') + '，护甲 ' + s.armor + '，生命 ' + s.health
+    + (s.warband?.size ? '，阵容' + warbandType(s.warband) : '');
   const face = badge('seat-face', '');
   if (s.hero) void loadCardImage(s.hero.id).then(img => { img.alt = ''; face.append(img); });
   el.append(badge('seat-rank', rank), face, badge('seat-armor', s.armor), badge('seat-health', s.health));
+  const tribe = s.alive && s.warband ? warbandType(s.warband) : undefined;
+  if (tribe) el.append(badge('seat-tribe' + (tribe === '混合' ? ' mixed' : ''), tribe));
   explain(el, summary(s, rank), 'right');
   return el;
 }
@@ -137,7 +142,7 @@ function standings() {
   const was = new Map([...seats.children].map(el => [(el as HTMLElement).dataset.id, el.getBoundingClientRect().top]));
   const { me, seat: id, opponents } = snapshot.state;
   const roster: Player[] = [{ id, hero: me.hero, health: me.health, armor: me.armor, alive: me.alive, tier: me.tier,
-    placement: me.placement, win_streak: me.win_streak, hero_powers: me.hero_powers, trinkets: me.trinkets }, ...opponents];
+    placement: me.placement, win_streak: me.win_streak, hero_powers: me.hero_powers, trinkets: me.trinkets, warband: me.warband }, ...opponents];
   // Eliminated players keep the place they finished in.
   seats.replaceChildren(...ranked(roster).map((p, i) => seat(p, p.alive || !p.placement ? i + 1 : p.placement)));
   const scale = boardScale();
