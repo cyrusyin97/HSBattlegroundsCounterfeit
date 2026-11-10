@@ -27,6 +27,8 @@ export interface Card {
   kind?: string;
   /** Cards attached to a minion, such as its Dark Gift. */
   attached?: Card[];
+  /** A tripled minion. */
+  golden?: boolean;
   tier?: number;
   eid?: number;
   shield_hits?: number;

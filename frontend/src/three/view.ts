@@ -6,7 +6,7 @@ import { byId, localPoint } from '../pieces';
 import { magnetTargets, resolveDrop, resolveTap, matchAction, targetAction, type Zone } from '../core/intents';
 import { DROP_HINTS, type CardView, type ViewHost } from '../view';
 import { Stage } from './stage';
-import { insertionIndex, slots, ZONES, zoneAt } from './layout';
+import { COMBAT_HAND, insertionIndex, slots, ZONES, zoneAt, type Rect } from './layout';
 import { diff, placements, transfers, type Key, type Placement } from './reconciler';
 import { CardKit, CardObject, faceOf } from './entities';
 import { Clock } from './motion';
@@ -22,7 +22,6 @@ const MAGNET_REACH = 44;
 /** The hand is nearest the camera; this keeps its cards near the DOM hand's size. */
 const HAND_SCALE = 0.78;
 /** Board pixels the hand sinks below the screen while combat plays. */
-const HAND_AWAY = 300;
 /** A board drop opens a gap at `gapAt`; a moved card leaves its own slot. */
 interface Gap { gapAt: number; skip?: Key }
 
@@ -57,6 +56,8 @@ export function createThreeView(host: ViewHost): CardView {
     Object.assign(window, { three: { stage, cards } });
   }
   let hover: CardObject | undefined;
+  /** While combat plays, input is locked but hovering still explains cards. */
+  let fighting = false;
   /** `aiming`: a targeted spell left the hand, so the gesture now picks its target. */
   let drag: {
     obj: CardObject; pointer: number; x: number; y: number; version: number;
@@ -94,10 +95,10 @@ export function createThreeView(host: ViewHost): CardView {
     return obj;
   }
 
-  function arrange(zone: Zone, list: Placement[], gapAt?: number, sink = 0) {
-    const spots = slots(zone, list.length, gapAt);
+  function arrange(zone: Zone, list: Placement[], gapAt?: number, area?: Rect) {
+    const spots = slots(zone, list.length, gapAt, area);
     list.forEach((p, i) => {
-      const pos = stage.boardToWorld(spots[i].x, spots[i].y + sink, kit.centerY);
+      const pos = stage.boardToWorld(spots[i].x, spots[i].y, kit.centerY);
       // Later hand cards sit slightly in front so overlapping faces never z-fight.
       if (zone === 'hand') pos.addScaledVector(kit.normal, i * 0.03);
       // Distance shrinks the shop row; scale it back so its text reads like the warband's.
@@ -130,17 +131,18 @@ export function createThreeView(host: ViewHost): CardView {
     }
   }
 
-  function setHover(obj: CardObject | undefined) {
+  /** `lift` raises the card; combat hover only explains it, so attack poses stay untouched. */
+  function setHover(obj: CardObject | undefined, lift = true) {
     if (obj === hover) return;
     if (hover) hover.hovered = false;
     hover = obj;
-    canvas.style.cursor = obj ? 'pointer' : '';
+    canvas.style.cursor = obj && lift ? 'pointer' : '';
     if (!obj) return host.tooltip();
-    obj.hovered = true;
-    const p = placed.get(obj.key);
-    if (!p || host.snapshot.state.me.pending?.kind === 'target') return host.tooltip();
+    obj.hovered = lift;
+    const card = fighting ? obj.card : placed.get(obj.key)?.card;
+    if (!card || host.snapshot.state.me.pending?.kind === 'target') return host.tooltip();
     const corner = obj.anchor(1, 1);
-    host.tooltip(p.card, corner.x, corner.y);
+    host.tooltip(card, corner.x, corner.y);
   }
 
   function dragTo(x: number, y: number) {
@@ -251,6 +253,7 @@ export function createThreeView(host: ViewHost): CardView {
       if (!host.busy) dragTo(p.x, p.y);
       return;
     }
+    if (fighting) return setHover(pick(p.x, p.y), false);
     setHover(host.busy || drag || !host.snapshot ? undefined : pick(p.x, p.y));
   });
   canvas.addEventListener('pointerup', e => release(e, false));
@@ -295,11 +298,15 @@ export function createThreeView(host: ViewHost): CardView {
     },
     async playCombat(script) {
       setHover(undefined);
-      // The hand sinks out of view and the shop clears for the opposing warband.
-      arrange('hand', zoneCards('hand'), undefined, HAND_AWAY);
+      // The hand moves beside the friendly hero and stays readable; the shop clears for the opposing warband.
+      arrange('hand', zoneCards('hand'), undefined, COMBAT_HAND);
       for (const p of zoneCards('shop')) cards.get(p.key)?.remove();
       placed = new Map();
-      await playCombat(combatTable, script);
+      fighting = true;
+      try { await playCombat(combatTable, script); } finally {
+        fighting = false;
+        setHover(undefined);
+      }
     },
     async shopEffect(kind, before, after) {
       if (kind === 'refresh') {

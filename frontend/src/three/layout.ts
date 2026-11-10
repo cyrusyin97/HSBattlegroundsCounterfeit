@@ -11,11 +11,12 @@ export const ZONES: Record<Zone, Rect> = {
   board: { left: 150, top: 390, right: 1290, bottom: 592 },
   hand: { left: 275, top: 635, right: 1185, bottom: 787 },
 };
+/** During combat the hand stays in view, fanned to the right of the friendly hero panel. */
+export const COMBAT_HAND: Rect = { left: 840, top: 650, right: 1300, bottom: 790 };
 const PITCH: Record<Zone, number> = { shop: 136, board: 136, hand: 92 };
 const CARD_WIDTH = 120;
 
-export function slot(zone: Zone, index: number, count: number): Slot {
-  const r = ZONES[zone];
+export function slot(zone: Zone, index: number, count: number, r = ZONES[zone]): Slot {
   const offset = index - (count - 1) / 2;
   const fit = count > 1 ? (r.right - r.left - CARD_WIDTH) / (count - 1) : PITCH[zone];
   const x = (r.left + r.right) / 2 + offset * Math.min(PITCH[zone], fit);
@@ -25,11 +26,11 @@ export function slot(zone: Zone, index: number, count: number): Slot {
   return { x, y: y + offset * offset * 2, roll: degrees * Math.PI / 180 };
 }
 
-/** Slots for `count` cards. With `gapAt`, one extra slot stays empty at that index. */
-export function slots(zone: Zone, count: number, gapAt?: number): Slot[] {
+/** Slots for `count` cards. With `gapAt`, one extra slot stays empty at that index. `area` replaces the zone's rectangle. */
+export function slots(zone: Zone, count: number, gapAt?: number, area = ZONES[zone]): Slot[] {
   const total = gapAt === undefined ? count : count + 1;
   const out: Slot[] = [];
-  for (let i = 0; i < total; i++) if (i !== gapAt) out.push(slot(zone, i, total));
+  for (let i = 0; i < total; i++) if (i !== gapAt) out.push(slot(zone, i, total, area));
   return out;
 }
 

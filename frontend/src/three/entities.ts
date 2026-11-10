@@ -48,6 +48,7 @@ export class CardKit {
   readonly poisonMaterial: THREE.MeshBasicMaterial;
   readonly smokeTexture = tex.smokeTexture();
   readonly windTexture = tex.windTexture();
+  readonly sheenTexture = tex.sheenTexture();
   readonly shadowTexture = tex.radialTexture();
   /** World units per board pixel on the warband row, where cards have their nominal size. */
   private readonly perPixel: number;
@@ -172,6 +173,7 @@ interface Pose { pos: THREE.Vector3; roll: number; scale: number }
 export interface Face {
   name: string; seed: string; spell: boolean;
   atk?: number; hp?: number; tier?: number; price?: number | null; costsHealth?: boolean; frozen?: boolean;
+  golden?: boolean;
 }
 
 export function faceOf(p: Placement): Face {
@@ -184,6 +186,7 @@ export function faceOf(p: Placement): Face {
     price: p.zone === 'shop' && spell ? p.price : undefined,
     costsHealth: p.zone === 'shop' && spell ? c.costs_health : undefined,
     frozen: p.frozen,
+    golden: !spell && !!c.golden,
   };
 }
 
@@ -215,6 +218,9 @@ export class CardObject {
   private readonly shell: THREE.Mesh;
   private readonly veil: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
   private readonly wind: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
+  /** Golden: a band of light sweeping across the face, a cue that does not rely on hue. */
+  private readonly sheen: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
+  private golden = false;
   private readonly rebornShell: THREE.Mesh;
   private readonly skull: THREE.Mesh;
   private readonly poison: THREE.Mesh;
@@ -261,16 +267,20 @@ export class CardObject {
       map: scrolling(kit.windTexture), transparent: true, depthWrite: false,
     }));
     this.wind.position.z = 0.006;
+    const sheen = scrolling(this.kit.sheenTexture);
+    sheen.repeat.set(0.5, 1);
+    this.sheen = new THREE.Mesh(kit.face, new THREE.MeshBasicMaterial({ map: sheen, transparent: true, depthWrite: false }));
+    this.sheen.position.z = 0.005;
     this.rebornShell = new THREE.Mesh(kit.reborn, kit.rebornMaterial);
     this.rebornShell.renderOrder = 1;
     this.skull = new THREE.Mesh(kit.badge, kit.skullMaterial);
     this.poison = new THREE.Mesh(kit.badge, kit.poisonMaterial);
-    for (const mesh of [this.bulwark, this.shell, this.veil, this.wind, this.rebornShell, this.skull, this.poison]) {
+    for (const mesh of [this.bulwark, this.shell, this.veil, this.wind, this.sheen, this.rebornShell, this.skull, this.poison]) {
       mesh.raycast = () => {};
       mesh.visible = false;
     }
     this.spin.add(this.bulwark, new THREE.Mesh(kit.body, kit.bodyMaterial), this.faceMesh, this.outlineMesh,
-      this.veil, this.wind, this.skull, this.poison, this.ice, this.rebornShell, this.shell);
+      this.veil, this.sheen, this.wind, this.skull, this.poison, this.ice, this.rebornShell, this.shell);
     this.tilt.add(this.spin);
     this.tilt.rotation.x = -kit.lean;
     this.root.add(this.tilt);
@@ -292,6 +302,7 @@ export class CardObject {
     this.taunt = table && auras.has('taunt');
     this.stealth = auras.has('stealth');
     this.windy = marks.includes('windfury');
+    this.golden = face.golden ?? false;
     this.rebornShell.visible = table && marks.includes('reborn');
     // Badges hang centred on the bottom edge, side by side when both apply.
     const badges = [marks.includes('deathrattle') && this.skull, marks.includes('venomous') && this.poison]
@@ -345,6 +356,8 @@ export class CardObject {
   /** Hidden cards still move; effects reveal them on cue. */
   set visible(value: boolean) { this.root.visible = this.shadow.visible = value; }
   get position() { return this.current.pos; }
+  /** The card this object shows, as of its last placement. */
+  get card() { return this.placement?.card; }
 
   hold(pos: THREE.Vector3 | undefined) { this.held = pos?.clone(); }
   get isHeld() { return this.held !== undefined; }
@@ -402,6 +415,9 @@ export class CardObject {
       if (!still) this.wind.material.map!.offset.set(-this.age * 0.55, Math.sin(this.age * 1.7) * 0.04);
       this.wind.material.opacity = still ? 0.85 : 0.6 + 0.4 * Math.max(0, Math.sin(this.age * 2.2));
     }
+    this.sheen.visible = this.golden;
+    // Under reduced motion the band rests across the face instead of sweeping.
+    if (this.golden) this.sheen.material.map!.offset.x = still ? 0.62 : (-this.age * 0.4) % 1;
     if (this.removing && c.scale < 0.04) this.gone = true;
   }
 
@@ -412,7 +428,7 @@ export class CardObject {
     (this.shadow.material as THREE.Material).dispose();
     this.ice.material.dispose();
     this.disposed = true;
-    for (const layer of [this.veil, this.wind]) {
+    for (const layer of [this.veil, this.wind, this.sheen]) {
       layer.material.map!.dispose();
       layer.material.dispose();
     }
@@ -453,8 +469,16 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   g.save();
   roundPath(g, 0, 0, w, h, 26 * u);
   const fill = g.createLinearGradient(0, 0, 0, h);
-  fill.addColorStop(0, `hsl(${base} 36% 36%)`);
-  fill.addColorStop(1, `hsl(${base} 44% 15%)`);
+  // Golden bodies are bright metal, far lighter than any normal body, so they stand out
+  // by brightness and not by hue alone.
+  if (f.golden) {
+    fill.addColorStop(0, '#fff0b3');
+    fill.addColorStop(0.45, '#e2b041');
+    fill.addColorStop(1, '#8a5a12');
+  } else {
+    fill.addColorStop(0, `hsl(${base} 36% 36%)`);
+    fill.addColorStop(1, `hsl(${base} 44% 15%)`);
+  }
   g.fillStyle = fill;
   g.fill();
   g.clip();
@@ -488,8 +512,17 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   }
   g.restore();
   frame();
-  g.lineWidth = 5 * u;
-  g.strokeStyle = '#e6c98a';
+  if (f.golden) {
+    // A dark band outside a thick pale ring keeps the window edge clear on the bright body.
+    g.lineWidth = 14 * u;
+    g.strokeStyle = '#4a2a06';
+    g.stroke();
+    g.lineWidth = 8 * u;
+    g.strokeStyle = '#fff4c8';
+  } else {
+    g.lineWidth = 5 * u;
+    g.strokeStyle = '#e6c98a';
+  }
   g.stroke();
 
   // A dark fade along the bottom keeps the numbers readable over any artwork.
@@ -516,10 +549,13 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   }
   g.restore();
 
-  g.lineWidth = 8 * u;
-  g.strokeStyle = f.frozen ? '#b8f9ff' : '#c8a160';
-  roundPath(g, 4 * u, 4 * u, w - 8 * u, h - 8 * u, 23 * u);
-  g.stroke();
+  if (f.golden) goldenFrame(g, w, h, u);
+  else {
+    g.lineWidth = 8 * u;
+    g.strokeStyle = f.frozen ? '#b8f9ff' : '#c8a160';
+    roundPath(g, 4 * u, 4 * u, w - 8 * u, h - 8 * u, 23 * u);
+    g.stroke();
+  }
 
   // Numbers stand on their own: a bright fill inside a heavy dark outline and shadow.
   const number = (text: string, x: number, y: number, align: CanvasTextAlign, size: number, color: string) => {
@@ -543,6 +579,59 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
   if (f.hp !== undefined) number(String(f.hp), w - 18 * u, low, 'right', 60, '#ff7a6b');
   if (f.price !== undefined) number((f.costsHealth ? '♥' : '') + (f.price ?? '–'), w - 16 * u, 30 * u, 'right', 48, '#ffe9a8');
   if (f.tier) drawStars(g, f.tier, 9 * u, 9 * u, 26 * u);
+}
+
+/**
+ * Golden minions: a double frame (a broad pale band inside a dark line), diamond studs at
+ * the corners and a crown over the top edge. Shape and contrast mark them, not color alone.
+ */
+function goldenFrame(g: CanvasRenderingContext2D, w: number, h: number, u: number) {
+  g.lineWidth = 16 * u;
+  g.strokeStyle = '#3d2205';
+  roundPath(g, 8 * u, 8 * u, w - 16 * u, h - 16 * u, 22 * u);
+  g.stroke();
+  g.lineWidth = 10 * u;
+  g.strokeStyle = '#ffe9a0';
+  roundPath(g, 8 * u, 8 * u, w - 16 * u, h - 16 * u, 22 * u);
+  g.stroke();
+  g.lineWidth = 3 * u;
+  g.strokeStyle = '#3d2205';
+  roundPath(g, 17 * u, 17 * u, w - 34 * u, h - 34 * u, 16 * u);
+  g.stroke();
+  const stud = (x: number, y: number) => {
+    const r = 11 * u;
+    g.beginPath();
+    g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y);
+    g.closePath();
+    g.fillStyle = '#fffbe8';
+    g.fill();
+    g.lineWidth = 3 * u;
+    g.strokeStyle = '#3d2205';
+    g.stroke();
+  };
+  for (const [x, y] of [[14, 14], [w / u - 14, 14], [14, h / u - 14], [w / u - 14, h / u - 14]]) stud(x * u, y * u);
+  // Crown: three points over a band, centred on the top edge.
+  const cx = w / 2, top = 4 * u, cw = 58 * u, ch = 34 * u;
+  g.beginPath();
+  g.moveTo(cx - cw / 2, top + ch);
+  g.lineTo(cx - cw / 2, top + 8 * u);
+  g.lineTo(cx - cw / 4, top + 20 * u);
+  g.lineTo(cx, top);
+  g.lineTo(cx + cw / 4, top + 20 * u);
+  g.lineTo(cx + cw / 2, top + 8 * u);
+  g.lineTo(cx + cw / 2, top + ch);
+  g.closePath();
+  g.fillStyle = '#ffe36e';
+  g.fill();
+  g.lineWidth = 4 * u;
+  g.strokeStyle = '#3d2205';
+  g.stroke();
+  for (const dx of [-cw / 4, 0, cw / 4]) {
+    g.beginPath();
+    g.arc(cx + dx, top + ch - 8 * u, 4 * u, 0, Math.PI * 2);
+    g.fillStyle = '#3d2205';
+    g.fill();
+  }
 }
 
 /** Tier as a row of gold stars on a dark pill, one star per tier. */

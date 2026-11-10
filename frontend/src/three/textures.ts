@@ -34,6 +34,22 @@ export const smokeTexture = () => canvasTexture(256, 256, g => {
   }
 });
 
+/**
+ * One diagonal band of light on a wide transparent tile, for golden minions. Scrolled
+ * sideways, it sweeps across the face and then leaves a pause before the next pass.
+ */
+export const sheenTexture = () => canvasTexture(512, 128, g => {
+  const band = g.createLinearGradient(40, 0, 150, 0);
+  band.addColorStop(0, 'rgba(255,248,220,0)');
+  band.addColorStop(0.5, 'rgba(255,250,232,.85)');
+  band.addColorStop(1, 'rgba(255,248,220,0)');
+  g.fillStyle = band;
+  g.beginPath();
+  g.moveTo(60, 0); g.lineTo(130, 0); g.lineTo(100, 128); g.lineTo(30, 128);
+  g.closePath();
+  g.fill();
+});
+
 /** White wind streaks on transparency for Windfury; scrolls sideways across the face. */
 export const windTexture = () => canvasTexture(256, 256, g => {
   g.lineCap = 'round';
