@@ -6,6 +6,7 @@ import { playCombat } from './combat';
 import { animateHeroVitals, renderHeroPanel } from './hero-effects';
 import { matchAction } from './core/intents';
 import { chooseOneModes, describe } from './core/describe';
+import { ranked } from './core/roster';
 import { execute } from './core/session';
 import { createThreeView } from './three/view';
 import { isShopAction, type CardView, type Transition, type ViewHost } from './view';
@@ -95,6 +96,7 @@ const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7 7.5
 function seat(s: { id: number; hero: Card | null; health: number; armor: number; alive: boolean }) {
   const you = s.id === snapshot.state.seat;
   const el = badge('seat' + (you ? ' you' : '') + (s.alive ? '' : ' out'), '');
+  el.dataset.id = String(s.id);
   el.title = (you ? '你 · ' : '') + (s.hero?.name_zh || '选将中') + (s.alive ? '' : ' · 出局');
   el.setAttribute('role', 'img');
   el.ariaLabel = el.title + '，护甲 ' + s.armor + '，生命 ' + s.health;
@@ -104,10 +106,26 @@ function seat(s: { id: number; hero: Card | null; health: number; armor: number;
   return el;
 }
 
+/** Rebuilds the roster in standings order; a player whose rank changed slides from its old row. */
+function standings() {
+  const seats = byId('seats');
+  const was = new Map([...seats.children].map(el => [(el as HTMLElement).dataset.id, el.getBoundingClientRect().top]));
+  const { me, seat: id, opponents } = snapshot.state;
+  const roster = [{ id, hero: me.hero, health: me.health, armor: me.armor, alive: me.alive }, ...opponents];
+  seats.replaceChildren(...ranked(roster).map(seat));
+  const scale = boardScale();
+  for (const el of seats.children as HTMLCollectionOf<HTMLElement>) {
+    const top = was.get(el.dataset.id);
+    const dy = top === undefined ? 0 : (top - el.getBoundingClientRect().top) / scale;
+    if (dy) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }],
+      { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 450, easing: 'ease-in-out' });
+  }
+}
+
 function render(transition?: Transition) {
   const { me, turn, phase } = snapshot.state;
   clearArrow();
-  for (const id of ['tools','end','hero','seats','choices']) byId(id).replaceChildren();
+  for (const id of ['tools','end','hero','choices']) byId(id).replaceChildren();
   host.tooltip();
   table.classList.remove('in-combat');
   byId('enemy-hero').hidden = true;
@@ -115,8 +133,7 @@ function render(transition?: Transition) {
   byId('enemy-hero').classList.remove('hero-defeated');
   byId('phase').textContent = (phase === 'hero_select' ? '选择英雄' : (!me.alive || phase==='game_over') ? '对局结束' : '招募') + ' · 第 ' + turn + ' 回合';
   byId('gold').textContent = '◉ ' + me.gold + ' 金币';
-  const roster = [{id:snapshot.state.seat,hero:me.hero,health:me.health,armor:me.armor,alive:me.alive}, ...snapshot.state.opponents];
-  byId('seats').append(...roster.map(seat));
+  standings();
   const tier = byId('tier');
   tier.innerHTML = STAR.repeat(me.tier);
   tier.ariaLabel = '酒馆等级 ' + me.tier;

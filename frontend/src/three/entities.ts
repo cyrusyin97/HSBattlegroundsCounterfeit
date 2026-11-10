@@ -83,9 +83,9 @@ export class CardKit {
     });
     this.ice.translate(0, 0, -0.085);
     const plate = { depth: 0.05, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.025, bevelSegments: 3, curveSegments: 10 };
-    this.bulwark = new THREE.ExtrudeGeometry(bulwarkShape(this.width, this.height, 0.2), plate);
+    this.bulwark = new THREE.ExtrudeGeometry(bulwarkShape(this.width, this.height, BULWARK_PAD), plate);
     this.bulwark.translate(0, 0, -this.depth - 0.09);
-    this.bulwarkRim = new THREE.ExtrudeGeometry(bulwarkShape(this.width, this.height, 0.31), plate);
+    this.bulwarkRim = new THREE.ExtrudeGeometry(bulwarkShape(this.width, this.height, BULWARK_PAD + 0.08), plate);
     this.bulwarkRim.translate(0, 0, -this.depth - 0.15);
     const steel = tex.steelTexture();
     // Extruded faces take UVs from shape coordinates (world units), so tile by size.
@@ -136,6 +136,9 @@ export class CardKit {
   scaleAt(y: number) { return worldPerPixel(this.stage, y) / this.perPixel; }
 }
 
+/** How far the taunt plate reaches past the card, in card widths. */
+const BULWARK_PAD = 0.14;
+
 /** A shield silhouette: square shoulders above the card, tapering to a point below it. */
 function bulwarkShape(width: number, height: number, pad: number) {
   const w = width / 2 + width * pad, top = height / 2 + width * pad * 0.7;
@@ -151,7 +154,7 @@ function bulwarkShape(width: number, height: number, pad: number) {
 
 /** Rivets around the steel plate, just inside its edge. */
 function rivetGeometry(width: number, height: number) {
-  const w = width / 2 + width * 0.2, top = height / 2 + width * 0.14, inset = width * 0.08;
+  const w = width / 2 + width * BULWARK_PAD, top = height / 2 + width * BULWARK_PAD * 0.7, inset = width * 0.07;
   const spots = [
     [-w + inset, top - inset], [0, top - inset * 0.8], [w - inset, top - inset],
     [-w + inset * 0.8, -height * 0.05], [w - inset * 0.8, -height * 0.05],
