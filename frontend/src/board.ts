@@ -1,6 +1,6 @@
 import './board.css';
 import { createGame, type Action, type Card, type GameSnapshot } from './game-api';
-import { loadCardImage } from './demo-art';
+import { withCardImage } from './demo-art';
 import { badge, boardScale, byId, localPoint } from './pieces';
 import { playCombat } from './combat';
 import { animateHeroVitals, renderHeroPanel } from './hero-effects';
@@ -128,7 +128,7 @@ function seat(s: Player, rank: number) {
   el.ariaLabel = '第 ' + rank + ' 名，' + (you ? '你，' : '') + (s.hero?.name_zh || '选将中') + '，护甲 ' + s.armor + '，生命 ' + s.health
     + (s.warband?.size ? '，阵容' + warbandType(s.warband) : '');
   const face = badge('seat-face', '');
-  if (s.hero) void loadCardImage(s.hero.id).then(img => { img.alt = ''; face.append(img); });
+  if (s.hero) withCardImage(s.hero.id, img => { img.alt = ''; face.append(img); });
   el.append(badge('seat-rank', rank), face, badge('seat-armor', s.armor), badge('seat-health', s.health));
   const tribe = s.alive && s.warband ? warbandType(s.warband) : undefined;
   if (tribe) el.append(badge('seat-tribe' + (tribe === '混合' ? ' mixed' : ''), tribe));
@@ -219,7 +219,7 @@ function render(transition?: Transition) {
       } else if (c) {
         const attached = describe(c).slice(1);
         btn.append(badge('choice-name', c.name_zh), badge('choice-text', [c.text_zh, ...attached].filter(Boolean).join('\n')));
-        void loadCardImage(c.id).then(img => { img.className = 'full'; btn.prepend(img); });
+        withCardImage(c.id, img => { img.className = 'full'; btn.prepend(img); });
       } else btn.append(badge('choice-name', '选项 ' + (a.option + 1)));
     }
   }

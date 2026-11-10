@@ -1,5 +1,5 @@
 import type { Combat, GameSnapshot, HeroState } from './game-api';
-import { loadCardImage } from './demo-art';
+import { withCardImage } from './demo-art';
 import { badge, byId } from './pieces';
 
 async function animate(el: HTMLElement, frames: Keyframe[], duration: number) {
@@ -16,7 +16,7 @@ export function renderHeroPanel(parent: HTMLElement, state: HeroState, ghost = f
   body.className = 'hero-body';
   const portrait = badge('hero-image', '');
   body.append(portrait);
-  if (state.hero) void loadCardImage(state.hero.id).then(image => {
+  if (state.hero) withCardImage(state.hero.id, image => {
     image.alt = state.hero!.name_zh;
     portrait.append(image);
   });
