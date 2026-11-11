@@ -149,21 +149,28 @@ def decide(game, seat, policy: Policy, stats: dict[int, SeatStats] | None = None
     return game.bot_action(seat)
 
 
-def advance_bots(game, policies: dict[int, Policy] | None = None, stats: dict[int, SeatStats] | None = None):
-    """Drive seats 1–7 until seat 0 has a decision, is eliminated, or the game ends."""
+def advance_bots(game, policies: dict[int, Policy] | None = None,
+                 stats: dict[int, SeatStats] | None = None) -> set[int]:
+    """Drive seats 1–7 until seat 0 has a decision, is eliminated, or the game ends.
+
+    Returns the seats that took at least one step.
+    """
     policies = policies or {}
     steps = 0
+    acted: set[int] = set()
     # Stop at the next human decision, including an extra choice opened by a trigger.
     while not game.is_over() and not game.needs_action(0) and not game.placements()[0]:
         before = steps
         for seat in range(1, game.num_players):
             if game.needs_action(seat):
                 game.step(seat, decide(game, seat, policies.get(seat, BUILTIN), stats))
+                acted.add(seat)
                 steps += 1
             if game.needs_action(0) or game.is_over() or game.placements()[0]:
-                return
+                return acted
         if steps == before or steps > 40000:
             raise RuntimeError("Bot seats failed to reach a player decision")
+    return acted
 
 
 def play_to_end(game, policies: dict[int, Policy] | None = None, stats: dict[int, SeatStats] | None = None):

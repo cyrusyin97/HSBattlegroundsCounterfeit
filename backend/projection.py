@@ -118,10 +118,11 @@ def race_counts(board, lobby):
     return dict(counts)
 
 
-def seat_view(game, seat, raw=None):
+def seat_view(game, seat, raw=None, hero_powers=None):
     """The engine's raw view of `seat`, its public projection, and its legal actions by mask index.
 
-    Pass `raw` when the caller already parsed the seat's view.
+    Pass `raw` when the caller already parsed the seat's view. `hero_powers` caches opponents'
+    hero powers by seat: listed seats are reused, the others are read and added to it.
     """
     raw = raw or json.loads(game.view(seat))  # Debug view also contains private data of the other seats.
     legal = semantic_actions(raw)
@@ -134,11 +135,15 @@ def seat_view(game, seat, raw=None):
                                     "trinkets last_warband seen_board seen_turn is_next_opponent")
                           for op in raw["opponents"]]
     lobby = raw.get("lobby_races") or []
+    powers = {} if hero_powers is None else hero_powers
     state["me"]["warband"] = {"size": len(raw["me"]["board"]), "races": race_counts(raw["me"]["board"], lobby)}
     for op, seen in zip(state["opponents"], raw["opponents"]):
         # Hero powers are public at the table but absent from this seat's view, so read each
-        # opponent's own seat. Their warband is reduced to tribe counts; the minions stay hidden.
-        op["hero_powers"] = json.loads(game.view(op["id"]))["me"]["hero_powers"]
+        # opponent's own seat. That view carries every combat of the round, so callers cache it.
+        # Their warband is reduced to tribe counts; the minions stay hidden.
+        if op["id"] not in powers:
+            powers[op["id"]] = json.loads(game.view(op["id"]))["me"]["hero_powers"]
+        op["hero_powers"] = powers[op["id"]]
         op["warband"] = {"size": len(seen["board"]), "races": race_counts(seen["board"], lobby)}
     state["me"]["dark_gift"] = select(state["me"]["dark_gift"], "available uses max_uses cost unlock_turn")
     return raw, visible_cards(state), legal
