@@ -43,6 +43,18 @@ test('a gap leaves one slot empty at the insertion index', () => {
   assert.deepEqual([gapped[0].x, gapped[1].x], [full[0].x, full[2].x]);
 });
 
+test('wider cards push their neighbours apart, plain rows keep the usual pitch', () => {
+  const plain = slots('board', 4, undefined, undefined, [116, 116, 116, 116]).map(s => s.x);
+  assert.deepEqual(plain, slots('board', 4).map(s => s.x));
+  const widths = [116, 150, 116];
+  const xs = slots('board', 3, undefined, undefined, widths).map(s => s.x);
+  // Every pair of neighbours keeps the same clear space between their footprints.
+  assert.equal(xs[1] - xs[0] - (widths[0] + widths[1]) / 2, xs[2] - xs[1] - (widths[1] + widths[2]) / 2);
+  assert.equal((xs[0] + xs[2]) / 2, (ZONES.board.left + ZONES.board.right) / 2);
+  const gapped = slots('board', 2, 1, undefined, [150, 116]);
+  assert.equal(gapped.length, 2);
+});
+
 test('zone and insertion lookup', () => {
   assert.equal(zoneAt(720, 264), 'shop');
   assert.equal(zoneAt(720, 491), 'board');

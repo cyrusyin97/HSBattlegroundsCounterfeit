@@ -26,12 +26,35 @@ export function slot(zone: Zone, index: number, count: number, r = ZONES[zone]):
   return { x, y: y + offset * offset * 2, roll: degrees * Math.PI / 180 };
 }
 
-/** Slots for `count` cards. With `gapAt`, one extra slot stays empty at that index. `area` replaces the zone's rectangle. */
-export function slots(zone: Zone, count: number, gapAt?: number, area = ZONES[zone]): Slot[] {
+/** A card's own width, and the clear space between neighbours in a row. */
+export const CARD_FOOTPRINT = 116;
+const ROW_GAP = 20;
+
+/**
+ * Slots for `count` cards. With `gapAt`, one extra slot stays empty at that index. `area`
+ * replaces the zone's rectangle. In the shop and warband rows, `widths` gives each card's
+ * footprint in board pixels (wider for layers such as a Taunt shield) and neighbours are
+ * spaced so the footprints keep the usual gap; cards of plain width get the usual pitch.
+ */
+export function slots(zone: Zone, count: number, gapAt?: number, area = ZONES[zone], widths?: readonly number[]): Slot[] {
   const total = gapAt === undefined ? count : count + 1;
-  const out: Slot[] = [];
-  for (let i = 0; i < total; i++) if (i !== gapAt) out.push(slot(zone, i, total, area));
-  return out;
+  if (zone === 'hand' || !widths) {
+    const out: Slot[] = [];
+    for (let i = 0; i < total; i++) if (i !== gapAt) out.push(slot(zone, i, total, area));
+    return out;
+  }
+  const w: number[] = [];
+  for (let i = 0, j = 0; i < total; i++) w.push(i === gapAt ? CARD_FOOTPRINT : widths[j++] ?? CARD_FOOTPRINT);
+  const centers: number[] = [];
+  let at = 0;
+  w.forEach((width, i) => {
+    if (i) at += (w[i - 1] + width) / 2 + ROW_GAP;
+    centers.push(at);
+  });
+  // A row too wide for its zone squeezes toward the middle, as the plain layout does.
+  const reach = (area.right - area.left - CARD_WIDTH) / 2, k = at / 2 > reach ? reach / (at / 2) : 1;
+  const mid = (area.left + area.right) / 2, y = (area.top + area.bottom) / 2;
+  return centers.flatMap((c, i) => i === gapAt ? [] : [{ x: mid + (c - at / 2) * k, y, roll: 0 }]);
 }
 
 export function zoneAt(x: number, y: number): Zone | undefined {

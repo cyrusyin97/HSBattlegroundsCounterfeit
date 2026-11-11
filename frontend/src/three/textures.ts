@@ -1,6 +1,28 @@
 // Procedural textures for card objects and keyword layers. Each is drawn once per
 // stage and shared; per-card layers clone the ones they scroll.
 import * as THREE from 'three';
+// Seamless greyscale tiles made by scripts/make_textures.py.
+import mapleUrl from './materials/maple.png';
+import smokeUrl from './materials/smoke.png';
+
+/** Starts loading `url`; `get` returns the image once loaded, null before or on failure. */
+function preload(url: string) {
+  let image: HTMLImageElement | null = null;
+  const ready = new Promise<void>(resolve => {
+    const img = new Image();
+    img.onload = () => { image = img; resolve(); };
+    img.onerror = () => resolve();
+    img.src = url;
+  });
+  return { ready, get: () => image };
+}
+
+const maple = preload(mapleUrl);
+const smoke = preload(smokeUrl);
+/** Resolves once the maple grain has loaded, or failed to. */
+export const mapleReady = maple.ready;
+/** Maple grain for card bodies, or null until it has loaded. */
+export const mapleGrain = maple.get;
 
 function canvasTexture(width: number, height: number, draw: (g: CanvasRenderingContext2D) => void, srgb = true) {
   const canvas = document.createElement('canvas');
@@ -17,22 +39,67 @@ function wrapped(size: number, paint: (dx: number, dy: number) => void) {
   for (const [dx, dy] of [[0, 0], [size, 0], [-size, 0], [0, size], [0, -size]]) paint(dx, dy);
 }
 
-/** Dense dark smoke for Stealth, tiled across the face. */
-export const smokeTexture = () => canvasTexture(256, 256, g => {
-  g.fillStyle = 'rgba(10,6,18,.78)';
+/**
+ * Smoke tinted `tint` with a dark wash on top, at `alpha`. Until the smoke tile loads it
+ * shows soft procedural puffs; then the canvas is redrawn and every clone updates.
+ */
+function tintedSmoke(tint: string, wash: string, alpha: number) {
+  const texture = canvasTexture(256, 256, g => {
+    g.fillStyle = 'rgba(10,6,18,.78)';
+    g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 70; i++) {
+      const x = Math.random() * 256, y = Math.random() * 256, r = 16 + Math.random() * 44;
+      const a = 0.1 + Math.random() * 0.14;
+      wrapped(256, (dx, dy) => {
+        const puff = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+        puff.addColorStop(0, `rgba(120,105,150,${a})`);
+        puff.addColorStop(1, 'rgba(120,105,150,0)');
+        g.fillStyle = puff;
+        g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
+      });
+    }
+  });
+  void smoke.ready.then(() => {
+    const image = smoke.get();
+    if (!image) return;
+    const g = (texture.image as HTMLCanvasElement).getContext('2d')!;
+    g.clearRect(0, 0, 256, 256);
+    g.drawImage(image, 0, 0, 256, 256);
+    // Lighter smoke (denser) keeps more of the tint; the wash darkens it all evenly.
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = tint;
+    g.fillRect(0, 0, 256, 256);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = wash;
+    g.fillRect(0, 0, 256, 256);
+    g.globalCompositeOperation = 'destination-in';
+    g.fillStyle = `rgba(0,0,0,${alpha})`;
+    g.fillRect(0, 0, 256, 256);
+    g.globalCompositeOperation = 'source-over';
+    texture.needsUpdate = true;
+  });
+  return texture;
+}
+
+/** Dark lavender smoke for Stealth, tiled across the face. */
+export const smokeTexture = () => tintedSmoke('#8a78b4', 'rgba(8,5,16,.45)', 0.82);
+
+/** Paler smoke for the ring that spills past a Stealth card's edges. */
+export const smokeRingTexture = () => tintedSmoke('#6f5d96', 'rgba(8,5,16,.1)', 1);
+
+/**
+ * Alpha for that ring: clear over the middle of the card, densest just past its edges and
+ * fading out beyond. Stretched over a plane larger than the card, the circle becomes an oval.
+ */
+export const ringMaskTexture = () => canvasTexture(256, 256, g => {
+  const ring = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  ring.addColorStop(0, '#000');
+  ring.addColorStop(0.52, '#000');
+  ring.addColorStop(0.66, '#fff');
+  ring.addColorStop(0.94, '#000');
+  g.fillStyle = ring;
   g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 70; i++) {
-    const x = Math.random() * 256, y = Math.random() * 256, r = 16 + Math.random() * 44;
-    const alpha = 0.1 + Math.random() * 0.14;
-    wrapped(256, (dx, dy) => {
-      const puff = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
-      puff.addColorStop(0, `rgba(120,105,150,${alpha})`);
-      puff.addColorStop(1, 'rgba(120,105,150,0)');
-      g.fillStyle = puff;
-      g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
-    });
-  }
-});
+}, false);
 
 /**
  * One diagonal band of light on a wide transparent tile, for golden minions. Scrolled
@@ -50,39 +117,42 @@ export const sheenTexture = () => canvasTexture(512, 128, g => {
   g.fill();
 });
 
-/** White wind streaks on transparency for Windfury; scrolls sideways across the face. */
+/**
+ * Wind for Windfury on transparency: a few tapered gusts, pointed at both ends and of uneven
+ * thickness, in a band across the top of the face and one across the bottom; the middle
+ * stays clear. Scrolls sideways across the face.
+ */
 export const windTexture = () => canvasTexture(256, 256, g => {
-  g.lineCap = 'round';
-  for (let i = 0; i < 9; i++) {
-    const y = 20 + i * 27 + Math.random() * 10, len = 90 + Math.random() * 110, x = Math.random() * 256;
-    const lift = (Math.random() - 0.5) * 30, width = 4 + Math.random() * 4;
-    wrapped(256, dx => {
-      const streak = g.createLinearGradient(x + dx, 0, x + dx + len, 0);
-      streak.addColorStop(0, 'rgba(255,255,255,0)');
-      streak.addColorStop(0.5, `rgba(255,255,255,${0.75 + Math.random() * 0.25})`);
-      streak.addColorStop(1, 'rgba(255,255,255,0)');
-      g.strokeStyle = streak;
-      g.lineWidth = width;
+  // Empty pixels are white at the lowest alpha, not transparent black, so filtering the
+  // thin gusts blends toward white instead of leaving a dark fringe.
+  g.fillStyle = 'rgba(255,255,255,.005)';
+  g.fillRect(0, 0, 256, 256);
+  // [y from the top, length, thickness, bow]
+  const gusts = [[18, 200, 10, -6], [38, 130, 4, -3], [8, 56, 2.5, -1], [222, 210, 11, -7], [244, 120, 3.5, -2]];
+  for (const [y, len, thick, bow] of gusts) {
+    const x = Math.random() * 256;
+    for (const dx of [-256, 0, 256]) {
+      const x0 = x + dx, x1 = x0 + len;
+      // The head (left, where the wind is going) is brightest; the tail fades out.
+      const fade = g.createLinearGradient(x0, 0, x1, 0);
+      fade.addColorStop(0, 'rgba(255,255,255,0)');
+      fade.addColorStop(0.22, 'rgba(255,255,255,.95)');
+      fade.addColorStop(0.65, 'rgba(255,255,255,.55)');
+      fade.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = fade;
       g.beginPath();
-      g.moveTo(x + dx, y);
-      g.bezierCurveTo(x + dx + len * 0.3, y - lift, x + dx + len * 0.6, y + lift, x + dx + len, y - lift * 0.4);
-      // A curl at the head of some streaks reads as a gust.
-      if (i % 3 === 0) g.arc(x + dx + len - 8, y - lift * 0.4 - 8, 8, Math.PI / 2, Math.PI * 1.9, true);
-      g.stroke();
-    });
+      g.moveTo(x0, y);
+      g.bezierCurveTo(x0 + len * 0.3, y + bow - thick, x0 + len * 0.7, y + bow - thick, x1, y);
+      g.bezierCurveTo(x0 + len * 0.7, y + bow + thick * 0.2, x0 + len * 0.3, y + bow + thick * 0.2, x0, y);
+      g.fill();
+    }
   }
 });
 
-/** Translucent silver with branching cracks, for Reborn. Alpha carries the shell's opacity. */
+/** Branching cracks on transparency, laid over Reborn's glass shell: a bright edge around a dark core. */
 export const crackTexture = () => canvasTexture(512, 512, g => {
-  const sheen = g.createLinearGradient(0, 0, 512, 512);
-  sheen.addColorStop(0, 'rgba(240,246,255,.34)');
-  sheen.addColorStop(0.5, 'rgba(210,222,240,.16)');
-  sheen.addColorStop(1, 'rgba(245,250,255,.3)');
-  g.fillStyle = sheen;
-  g.fillRect(0, 0, 512, 512);
   // Both passes (highlight, then dark core) replay the same seeded walk so they line up.
-  for (const [color, width] of [['rgba(255,255,255,.95)', 4], ['rgba(70,85,110,.85)', 1.6]] as const) {
+  for (const [color, width] of [['rgba(255,255,255,.95)', 7], ['rgba(30,40,60,.95)', 3]] as const) {
     let seed = 7;
     const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const crack = (x: number, y: number, angle: number, length: number, depth: number) => {

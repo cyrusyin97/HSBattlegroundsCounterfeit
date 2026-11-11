@@ -9,7 +9,7 @@ import { t } from '../i18n';
 import { Stage } from './stage';
 import { COMBAT_HAND, insertionIndex, slots, ZONES, zoneAt, type Rect } from './layout';
 import { diff, placements, transfers, type Key, type Placement } from './reconciler';
-import { CardKit, CardObject, faceOf } from './entities';
+import { CardKit, CardObject, faceOf, footprint } from './entities';
 import { Clock } from './motion';
 import { Labels, Particles } from './fx';
 import { playCombat, type CombatTable } from './combat';
@@ -97,13 +97,15 @@ export function createThreeView(host: ViewHost): CardView {
   }
 
   function arrange(zone: Zone, list: Placement[], gapAt?: number, area?: Rect) {
-    const spots = slots(zone, list.length, gapAt, area);
+    const spots = slots(zone, list.length, gapAt, area, list.map(p => footprint(p.card)));
     list.forEach((p, i) => {
-      const pos = stage.boardToWorld(spots[i].x, spots[i].y, kit.centerY);
-      // Later hand cards sit slightly in front so overlapping faces never z-fight.
-      if (zone === 'hand') pos.addScaledVector(kit.normal, i * 0.03);
       // Distance shrinks the shop row; scale it back so its text reads like the warband's.
       const scale = zone === 'hand' ? HAND_SCALE : zone === 'shop' ? kit.scaleAt(spots[i].y) : 1;
+      // Cards scale about their centre, so a card scaled up stands higher to keep its
+      // bottom edge on the table instead of sinking into it.
+      const pos = stage.boardToWorld(spots[i].x, spots[i].y, kit.centerY * Math.max(1, scale));
+      // Later hand cards sit slightly in front so overlapping faces never z-fight.
+      if (zone === 'hand') pos.addScaledVector(kit.normal, i * 0.03);
       cards.get(p.key)?.setRest(pos, spots[i].roll, scale);
     });
   }
@@ -169,7 +171,7 @@ export function createThreeView(host: ViewHost): CardView {
     }
     d.obj.hold(stage.boardToWorld(x, y, kit.centerY + DRAG_LIFT));
     const board = zoneCards('board');
-    const base = slots('board', board.length);
+    const base = slots('board', board.length, undefined, undefined, board.map(p => footprint(p.card)));
     const centers = board.flatMap((p, i) => p.key === source.key ? [] : [base[i].x]);
     const position = insertionIndex(x, centers);
     const zone = zoneAt(x, y);
@@ -188,13 +190,13 @@ export function createThreeView(host: ViewHost): CardView {
     host.message(d.action ? drop[d.action.kind] ?? drop.confirm : drop.seek);
   }
 
-  /** Outlines the minions a dragged Magnetic card can attach to; the one under it lights gold. */
+  /** Marks the minions a dragged Magnetic card can attach to; the one under it rises. */
   function markMagnets(hid: number | undefined, over?: CardObject) {
     const targets = hid === undefined ? [] : magnetTargets(host.snapshot, hid);
     for (const p of zoneCards('board')) {
       const obj = cards.get(p.key);
       if (!obj) continue;
-      // Spell targets keep their outline; magnet targets add theirs while dragging.
+      // Spell targets stay targetable; magnet targets join them while dragging.
       obj.targetable = targets.includes(p.id) || !!targetAction(host.snapshot, p);
       obj.hovered = obj === over;
     }
