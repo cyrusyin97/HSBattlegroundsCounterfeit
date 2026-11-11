@@ -150,13 +150,14 @@ export class CardKit {
       depth: 0.14, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2, curveSegments: 6,
     });
     this.reborn.translate(0, 0, -0.1);
-    // Lightly frosted glass: transmission shows the card through the shell, slightly softened.
+    // Glass faked with plain blending: a faint pale tint plus clearcoat reflections of the room.
+    // Real transmission looked much the same but redrew the whole scene every frame.
     this.rebornMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xf4f8ff, emissive: 0x0e131a, metalness: 0, roughness: 0.08,
-      transmission: 0.95, thickness: 0.05, ior: 1.2, side: THREE.DoubleSide,
+      color: 0xeaf2ff, emissive: 0x0e131a, metalness: 0, roughness: 0.1,
+      clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 2.2,
+      transparent: true, opacity: 0.15, depthWrite: false, side: THREE.DoubleSide,
     });
-    // Transmission would wash out anything drawn into the glass, so the cracks ride on a
-    // plane just over its front face. The shell's front sits at z ≈ 0.07.
+    // The cracks ride on a plane just over the shell's front face, which sits at z ≈ 0.07.
     this.cracks = new THREE.PlaneGeometry(this.width + rebornPad, this.height + rebornPad);
     this.cracks.translate(0, 0, 0.072);
     this.crackMaterial = new THREE.MeshBasicMaterial({ map: tex.crackTexture(), transparent: true, depthWrite: false });
