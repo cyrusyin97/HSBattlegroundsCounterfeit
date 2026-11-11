@@ -60,7 +60,7 @@ All paths below are relative to the repository root. `work/`, dependencies, gene
 | `frontend/public/assets/official/` | Downloaded official PNGs, named by engine card ID |
 | `scripts/restore_demo_art.py` | Repeatable restoration of artwork already listed in the manifest |
 | `vendor/wheels/` | Original and patched native Python wheels |
-| `vendor/taverngym/attack-impact.patch` | Combined replay patch against the pinned upstream commit |
+| `vendor/taverngym/attack-impact.patch` | Combined replay and public-view patch against the pinned upstream commit |
 | `vendor/taverngym/build-manifest.json` | Upstream identity, original checks, patched build fingerprint and wheel digest |
 | `vendor/taverngym/LICENSE`, `NOTICE` | Engine licensing and third-party game-content notice |
 | `work/combat-engine/` | Local patched Rust/Python source checkout |
@@ -83,7 +83,7 @@ npm ci
 .venv/bin/python scripts/restore_demo_art.py
 ```
 
-The bundled patched wheel is `taverngym-1.0.0+impact2-cp310-abi3-macosx_11_0_arm64.whl`. Other operating systems and Intel Macs require a corresponding native build and an updated dependency path. Once installed, importing `taverngym` does not require the engine checkout to sit inside the application directory. The source tree is needed for rebuilding and investigating engine behavior.
+The bundled patched wheel is `taverngym-1.0.0+impact3-cp310-abi3-macosx_11_0_arm64.whl`. Other operating systems and Intel Macs require a corresponding native build and an updated dependency path. Once installed, importing `taverngym` does not require the engine checkout to sit inside the application directory. The source tree is needed for rebuilding and investigating engine behavior.
 
 Once dependencies and artwork are installed, normal local play uses the local service and cached assets. Artwork restoration and dependency installation require network access when their files are unavailable locally.
 
@@ -221,9 +221,11 @@ Representative timing is roughly 260 ms for old-card departure, 460 ms for each 
 
 ## 8. Combat data and local engine modifications
 
-The upstream project is **MCG-NJU/AutoTavern**. TavernGym is its native simulation package, exposed to Python. The application pins commit `fb61201a557ddd36a411cf44aac51ce4d9b606ce`. The patched package is **1.0.0+impact2**, with source fingerprint `ed272c64fc36aeea` and wheel SHA-256 `e3dadf8ffd2d82e04cbe4645de8683d9f8bdd1f7622803765c42657f6345efce`. The original upstream fingerprint is `c807e9aa1a6746ee`.
+The upstream project is **MCG-NJU/AutoTavern**. TavernGym is its native simulation package, exposed to Python. The application pins commit `fb61201a557ddd36a411cf44aac51ce4d9b606ce`. The patched package is **1.0.0+impact3**, with source fingerprint `10fc8423c2f7d6ca` and wheel SHA-256 `b752af64de657545348e26558d7aa439c7676b85758aabe44163f2124a22a6e7`. The original upstream fingerprint is `c807e9aa1a6746ee`.
 
-The combined patch changes `engine.rs`, `combat.rs`, `debug.rs`, and the Python package version. It adds presentation records around the existing engine damage operations.
+The combined patch changes `engine.rs`, `combat.rs`, `debug.rs`, the Python binding (`taverngym-py/src/lib.rs`), and the Python package version. It adds presentation records around the existing engine damage operations, and exposes the engine's existing public views to Python.
+
+**Public views.** `Game.public_view(seat)` and `Game.public_view_without_combats(seat)` call the engine's own `debug::public_view` functions. They leave out other players' current and last boards, and keep only the combat that seat fought (or none). The plain `view` carries every combat of the round and every board, which made each snapshot read several hundred KB by mid-game. The backend reads the local seat with `public_view` and each opponent's hero powers with `public_view_without_combats`. Opponents' warbands on the leaderboard come from `last_warband`, their board in their last combat, as in the real leaderboard.
 
 **Minion contact records.** A combat frame includes ordered `attacks`, post-resolution `boards`, and optional `impacts`. Each impact identifies `from` and `to`, with a list of affected targets. A hit records actual returned `damage`, immediate `hp`, remaining `shield_hits`, `absorbed`, and `lethal`. The patch captures this data around direct attack damage, cleave neighbors, and retaliation, before deferred reactions and death processing erase the immediate state.
 
@@ -322,7 +324,7 @@ The engine code is accompanied by MIT licensing. Its NOTICE separately identifie
 
 ## 13. Rebuilding the engine and preserving the handover
 
-Use the upstream commit and apply the combined patch once. `attack-impact.patch` already includes both the minion contact and hero settlement additions. An example build sequence on a machine with the appropriate Rust/Python toolchains is below. Use a fresh source checkout if `work/combat-engine` already contains the patched tree.
+Use the upstream commit and apply the combined patch once. `attack-impact.patch` already includes the minion contact and hero settlement additions and the public views. An example build sequence on a machine with the appropriate Rust/Python toolchains is below. Use a fresh source checkout if `work/combat-engine` already contains the patched tree.
 
 ```sh
 cd /Users/cyrusyin/codebase/cloneBattlegrounds
@@ -383,4 +385,4 @@ The local source, manifest, and tests are the basis for the implementation detai
 | [Huiji Battlegrounds overview](https://hearthstone.huijiwiki.com/wiki/%E9%85%92%E9%A6%86%E6%88%98%E6%A3%8B) | User-supplied background reference |
 | [Chinese Fandom Battlegrounds overview](https://hearthstone.fandom.com/zh/wiki/%E9%85%92%E9%A6%86%E6%88%98%E6%A3%8B?variant=zh-hans) | User-supplied background reference |
 
-For the current machine, start with the [application README](/Users/cyrusyin/codebase/cloneBattlegrounds/README.md), [build manifest](/Users/cyrusyin/codebase/cloneBattlegrounds/vendor/taverngym/build-manifest.json), [combined replay patch](/Users/cyrusyin/codebase/cloneBattlegrounds/vendor/taverngym/attack-impact.patch), and [artwork manifest](/Users/cyrusyin/codebase/cloneBattlegrounds/frontend/src/demo-art.json). These absolute links are specific to this workspace. Repository-relative paths in the implementation map remain usable after moving the checkout.
+For the current machine, start with the [application README](/Users/cyrusyin/codebase/cloneBattlegrounds/README.md), [build manifest](/Users/cyrusyin/codebase/cloneBattlegrounds/vendor/taverngym/build-manifest.json), [combined engine patch](/Users/cyrusyin/codebase/cloneBattlegrounds/vendor/taverngym/attack-impact.patch), and [artwork manifest](/Users/cyrusyin/codebase/cloneBattlegrounds/frontend/src/demo-art.json). These absolute links are specific to this workspace. Repository-relative paths in the implementation map remain usable after moving the checkout.

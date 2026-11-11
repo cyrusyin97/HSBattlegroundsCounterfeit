@@ -40,7 +40,7 @@ class DecisionContext:
 
     @cached_property
     def _raw(self):
-        return json.loads(self._game.view(self.seat))
+        return json.loads(self._game.public_view(self.seat))
 
     @cached_property
     def _legal(self) -> dict[int, dict]:

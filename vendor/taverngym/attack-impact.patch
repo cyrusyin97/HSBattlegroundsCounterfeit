@@ -209,7 +209,27 @@
  [project]
  name = "taverngym"
 -version = "1.0.0"
-+version = "1.0.0+impact2"
++version = "1.0.0+impact3"
  description = "TavernGym: a Hearthstone Battlegrounds solo-mode simulator with a reinforcement-learning interface"
  readme = "README.md"
  requires-python = ">=3.10"
+--- a/crates/taverngym-py/src/lib.rs
++++ b/crates/taverngym-py/src/lib.rs
+@@ -159,6 +159,17 @@
+         check_seat(&self.g, p)?;
+         Ok(py.detach(|| taverngym::debug::view(&self.g, p).to_string()))
+     }
++    /// What seat `p` may see (`taverngym::debug::public_view`): no other player's current
++    /// board and only the combat `p` fought.
++    fn public_view(&self, py: Python<'_>, p: usize) -> PyResult<String> {
++        check_seat(&self.g, p)?;
++        Ok(py.detach(|| taverngym::debug::public_view(&self.g, p).to_string()))
++    }
++    /// `public_view` without any combat replay.
++    fn public_view_without_combats(&self, py: Python<'_>, p: usize) -> PyResult<String> {
++        check_seat(&self.g, p)?;
++        Ok(py.detach(|| taverngym::debug::public_view_without_combats(&self.g, p).to_string()))
++    }
+     /// Run a debug command given as JSON (`{"cmd": "set_player", ...}`); returns JSON.
+     fn debug(&mut self, py: Python<'_>, cmd_json: &str) -> PyResult<String> {
+         let cmd: taverngym::debug::DebugCmd = serde_json::from_str(cmd_json)

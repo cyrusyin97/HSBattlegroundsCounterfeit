@@ -146,7 +146,7 @@ Do not commit or redistribute these images.
 
 The rules come from [MCG-NJU/AutoTavern](https://github.com/MCG-NJU/AutoTavern) (TavernGym), pinned at commit `fb61201a557ddd36a411cf44aac51ce4d9b606ce`.
 
-- **Bundled wheel:** the patched `1.0.0+impact2` build.
+- **Bundled wheel:** the patched `1.0.0+impact3` build.
 - **Engine patch:** `vendor/taverngym/attack-impact.patch`.
 - **Build record:** `vendor/taverngym/build-manifest.json`.
 

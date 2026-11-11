@@ -103,7 +103,7 @@ def targeted_spells(game, legal):
             trial.step(0, index)
         except ValueError:
             continue
-        pending = json.loads(trial.view(0))["me"].get("pending")
+        pending = json.loads(trial.public_view_without_combats(0))["me"].get("pending")
         if pending and pending.get("kind") == "target":
             found.add(action["hand_id"])
     return found
@@ -118,12 +118,23 @@ def race_counts(board, lobby):
     return dict(counts)
 
 
+def last_warband(summary):
+    """An opponent's warband in its last combat, from the engine's summary, in `race_counts` form.
+
+    The leaderboard shows what that combat revealed, not the board the opponent holds now.
+    """
+    if not summary:
+        return {"size": 0, "races": {}}
+    return {"size": summary["size"], "races": {c["race"]: c["count"] for c in summary["counts"]}}
+
+
 def seat_view(game, seat, raw=None):
     """The engine's raw view of `seat`, its public projection, and its legal actions by mask index.
 
     Pass `raw` when the caller already parsed the seat's view.
     """
-    raw = raw or json.loads(game.view(seat))  # Debug view also contains private data of the other seats.
+    # The public view leaves out other seats' boards and combats this seat did not fight.
+    raw = raw or json.loads(game.public_view(seat))
     legal = semantic_actions(raw)
     state = select(raw, "seat turn phase version lobby_races deity paradox alive")
     state["me"] = select(raw["me"], "hero hero_powers health armor alive placement tier gold max_gold "
@@ -137,8 +148,8 @@ def seat_view(game, seat, raw=None):
     state["me"]["warband"] = {"size": len(raw["me"]["board"]), "races": race_counts(raw["me"]["board"], lobby)}
     for op, seen in zip(state["opponents"], raw["opponents"]):
         # Hero powers are public at the table but absent from this seat's view, so read each
-        # opponent's own seat. Their warband is reduced to tribe counts; the minions stay hidden.
-        op["hero_powers"] = json.loads(game.view(op["id"]))["me"]["hero_powers"]
-        op["warband"] = {"size": len(seen["board"]), "races": race_counts(seen["board"], lobby)}
+        # opponent's own seat, without combat replays. Their warband is reduced to tribe counts.
+        op["hero_powers"] = json.loads(game.public_view_without_combats(op["id"]))["me"]["hero_powers"]
+        op["warband"] = last_warband(seen["last_warband"])
     state["me"]["dark_gift"] = select(state["me"]["dark_gift"], "available uses max_uses cost unlock_turn")
     return raw, visible_cards(state), legal
