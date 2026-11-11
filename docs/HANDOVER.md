@@ -270,6 +270,7 @@ Scenarios use seed 17, select the first offered hero for each seat, inject demon
 | `hero_damage` | End turn, take 2 hero damage, break 1 armor, and change health from 30 to 29 |
 | `mechanics` | Turn 3 with 10 gold: drag 催眠机器人 onto 拔线机 to magnetize, use the Dark Gift button, cast 联盟旗帜 for a Choose One, or activate 重伤的强盗 and click a hand card to discard it |
 | `late` | Scripted bots play every seat (seed 6) to turn 10; hover the roster to read each player's rank, tier, hero power and trinkets |
+| `showcase` | Seven minions with one effect each (Taunt, Divine Shield, Stealth, Reborn, Windfury, Venomous, golden Deathrattle), a targeted spell in hand and two enemy minions; add `?noart` to leave out the licensed art, as in `docs/screenshots/` |
 | Random game | Select `random` in the UI, or omit the API scenario parameter, to exercise ordinary hero selection and bot play |
 
 Example URLs use `?scenario=collision` or `?scenario=hero_damage` on either the development or combined-preview origin. Restarting a scenario creates a new independent session.

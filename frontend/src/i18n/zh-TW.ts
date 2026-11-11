@@ -9,7 +9,7 @@ export const zhTW: Messages = {
   menu: { newGame: '開始新對局', restart: '重開', restartTitle: '重新開局', language: '語言' },
   scenarios: {
     target: '定向施法', recruit: '招募練習', triple: '三連發現', collision: '碰撞傷害', deathrattle: '亡語戰鬥',
-    reborn: '復生戰鬥', hero_damage: '英雄受傷', mechanics: '機制測試', late: '中盤對局', random: '隨機對局',
+    reborn: '復生戰鬥', hero_damage: '英雄受傷', mechanics: '機制測試', late: '中盤對局', showcase: '特效展示', random: '隨機對局',
   },
   regions: { roster: '玩家列表', hero: '我方英雄', enemyHero: '敵方英雄' },
   phase: {

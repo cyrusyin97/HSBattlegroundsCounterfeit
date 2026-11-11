@@ -9,7 +9,7 @@ export const zhCN = {
   menu: { newGame: '开始新对局', restart: '重开', restartTitle: '重新开局', language: '语言' },
   scenarios: {
     target: '定向施法', recruit: '招募练习', triple: '三连发现', collision: '碰撞伤害', deathrattle: '亡语战斗',
-    reborn: '复生战斗', hero_damage: '英雄受伤', mechanics: '机制测试', late: '中盘对局', random: '随机对局',
+    reborn: '复生战斗', hero_damage: '英雄受伤', mechanics: '机制测试', late: '中盘对局', showcase: '特效展示', random: '随机对局',
   } as Record<string, string>,
   regions: { roster: '玩家列表', hero: '己方英雄', enemyHero: '对方英雄' },
   phase: {

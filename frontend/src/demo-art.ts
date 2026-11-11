@@ -1,4 +1,6 @@
 const fallback = '/assets/unknown-card.svg';
+/** `?noart` leaves out the licensed card art, for screenshots that may be shared. */
+const noArt = typeof location !== 'undefined' && new URLSearchParams(location.search).has('noart');
 const unavailable = new Set<string>();
 /** Decoded images by card ID; copies of these paint in the same frame they are inserted. */
 const decoded = new Map<string, HTMLImageElement>();
@@ -6,7 +8,7 @@ const decoded = new Map<string, HTMLImageElement>();
 /** Load only visible card faces. The full provenance manifest stays out of the JS bundle. */
 export async function loadCardImage(cardId: string): Promise<HTMLImageElement> {
   const image = new Image();
-  if (!unavailable.has(cardId)) {
+  if (!noArt && !unavailable.has(cardId)) {
     image.src = '/assets/official/' + encodeURIComponent(cardId) + '.png';
     try {
       await image.decode();

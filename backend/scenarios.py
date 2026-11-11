@@ -14,6 +14,7 @@ SCENARIOS = {
     "hero_damage": "结束回合，观察敌方英雄攻击，己方 1 点护甲破碎并损失 1 点生命值。",
     "mechanics": "第 3 回合、10 金币：把催眠机器人拖到拔线机上磁力吸附，使用黑暗之赐，施放联盟旗帜做出抉择，或发动重伤的强盗弃掉一张手牌。",
     "late": "第 10 回合的中盘对局：滑过左侧玩家列表查看各家排名、酒馆等级、英雄技能和饰品。",
+    "showcase": "每个随从展示一种效果：嘲讽、圣盾、潜行、复生、风怒、剧毒和金色亡语随从；结束回合观察战斗。",
 }
 
 
@@ -63,6 +64,18 @@ def make_scenario(key: str):
         state["turn"] = 3
         state["players"][0]["gold"] = 10
         game = taverngym.Game.from_json(json.dumps(state))
+    elif key == "showcase":
+        # One effect per card, so a single board shows everything the table draws.
+        for index, (card, keywords) in enumerate((
+                ("BG25_001", ["TAUNT"]), ("BGS_119", ["DIVINE_SHIELD"]), ("BGS_004", ["STEALTH"]),
+                ("BG25_001", ["REBORN"]), ("BGS_119", ["WINDFURY"]), ("BGS_131", ["VENOMOUS"]))):
+            minion(card)
+            game.debug(json.dumps(dict(cmd="edit_minion", p=0, zone="board", index=index, keywords=keywords)))
+        minion("BG28_300", golden=True)
+        game.debug(json.dumps(dict(cmd="add_spell", p=0, zone="hand", card="BG28_897")))
+        game.debug(json.dumps(dict(cmd="add_minion", p=0, zone="hand", card="BG26_135")))
+        minion("BGS_119", opponent, atk=3, hp=8)
+        minion("BGS_004", opponent, atk=2, hp=9)
     elif key == "hero_damage":
         minion("BGS_004", atk=1, hp=1)
         minion("BGS_119", opponent, atk=3, hp=8)

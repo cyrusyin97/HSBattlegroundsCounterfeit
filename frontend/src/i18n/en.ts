@@ -11,7 +11,7 @@ export const en: Messages = {
   scenarios: {
     target: 'Targeted spell', recruit: 'Recruit practice', triple: 'Triple and Discover', collision: 'Simultaneous hits',
     deathrattle: 'Deathrattle combat', reborn: 'Reborn combat', hero_damage: 'Hero damage', mechanics: 'Mechanics test',
-    late: 'Mid-game', random: 'Random game',
+    late: 'Mid-game', showcase: 'Effect showcase', random: 'Random game',
   },
   regions: { roster: 'Players', hero: 'Your hero', enemyHero: 'Opposing hero' },
   phase: {

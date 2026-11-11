@@ -6,19 +6,31 @@ A personal, local-only Hearthstone Battlegrounds–style auto-battler. You play 
 
 > **Unofficial fan project.** It is not affiliated with, endorsed by or sponsored by Blizzard Entertainment. Hearthstone and all card names, card text and artwork belong to Blizzard. **This repository contains no official card art.** Artwork can be restored into a Git-ignored folder for personal local testing only. See [Artwork](#artwork).
 
+## Screenshots
+
+Captured with `?noart`, which leaves out the licensed card art: cards show placeholder illustrations and heroes a blank portrait.
+
+![Every keyword effect on one warband (the `showcase` scenario)](docs/screenshots/effects.jpg)
+
+<table>
+<tr><td width="50%"><img src="docs/screenshots/effects-warband.jpg" alt="Warband close-up: Taunt, Divine Shield, Stealth, Reborn, Windfury, Venomous and a golden Deathrattle minion"><br>Warband close-up: Taunt, Divine Shield, Stealth, Reborn, Windfury, Venomous and a golden Deathrattle minion</td><td width="50%"><img src="docs/screenshots/combat.jpg" alt="Combat replay: the Taunt minion trades hits with a Divine Shield minion, with damage bursts"><br>Combat replay: the Taunt minion trades hits with a Divine Shield minion, with damage bursts</td></tr>
+<tr><td width="50%"><img src="docs/screenshots/targeting.jpg" alt="A targeted spell turns into an aiming arrow"><br>A targeted spell turns into an aiming arrow</td><td width="50%"><img src="docs/screenshots/freeze.jpg" alt="A frozen shop"><br>A frozen shop</td></tr>
+<tr><td width="50%"><img src="docs/screenshots/mid-game.jpg" alt="Mid-game: hovering a player shows their rank, last warband, hero power and trinkets"><br>Mid-game: hovering a player shows their rank, last warband, hero power and trinkets</td><td width="50%"></td></tr>
+</table>
+
 ## Features
 
-- **Rules engine:** TavernGym 1.0.0 (rules 36.6.3), with a small local patch that records attack impacts and hero health before and after combat.
-- **3D board:** Three.js renders the shop, warband and hand as persistent card objects. You drag cards to buy, play, reorder and sell them.
-- **Card faces:** procedural frames with the illustration, tier stars and attack/health as plain numbers. Hovering a card shows its name, text and attached cards (such as Dark Gifts).
+- **Rules engine:** TavernGym 1.0.0 (rules 36.6.3), with a small local patch that records attack impacts and hero health before and after combat, and exposes the engine's public views to Python.
+- **3D board:** Three.js renders the shop, warband and hand as persistent card objects. You drag cards to buy, play, reorder and sell them. Rows space cards by the width of their effects, so shields and bubbles never cover a neighbour.
+- **Card faces:** procedural brass frames on a maple-grain body, with the illustration under glass, a silver tier plate and attack/health as plain numbers. Hovering a card shows its name, text and attached cards (such as Dark Gifts).
 - **Keyword visuals:**
-  - Taunt: a steel shield behind the card.
-  - Divine Shield: a golden bubble.
-  - Stealth: dark smoke.
-  - Windfury: wind streaks.
-  - Reborn: a cracked silver shell.
+  - Taunt: the card stands raised on a thick riveted steel shield.
+  - Divine Shield: a deep golden bubble that wraps the card.
+  - Stealth: smoke over the face that spills past the card's edge.
+  - Windfury: wind gusts across the top and bottom of the face.
+  - Reborn: a frosted glass shell with cracks.
   - Deathrattle and Venomous: badges on the card.
-  - Golden minions: bright frame, crown and light sweep, readable without relying on color.
+  - Golden minions: a gold frame and a light sweep, readable without relying on color.
 - **Interactions:**
   - Targeted spells turn into an aiming arrow when dragged out of the hand. The arrow starts at whatever opened the choice: a hand card, a minion or a hero power.
   - Magnetic minions attach to mechs.
@@ -26,7 +38,7 @@ A personal, local-only Hearthstone Battlegrounds–style auto-battler. You play 
   - Choose One and Discover panels can be folded away.
   - Right-click or Esc cancels.
 - **Combat playback:** the engine's combat log is replayed on the table, with lunges, damage bursts, shield breaks, deaths, summons and the final hero attack. The hand stays visible, and hovering still explains cards.
-- **Opponent info:** the roster ranks players by health plus armor. Each portrait shows the tribe of that player's current warband. Hovering a portrait shows the player's rank, tavern tier, win streak, hero power and trinkets.
+- **Opponent info:** the roster ranks players by health plus armor. Each portrait shows the tribe of that player's warband in their last combat. Hovering a portrait shows the player's rank, tavern tier, win streak, hero power and trinkets.
 - **Three languages:** English, Simplified Chinese and Traditional Chinese, switchable from the menu in the top-left without restarting. The game follows your browser language by default; `?lang=en`, `?lang=zh-CN` or `?lang=zh-TW` forces one. Traditional card text is converted from Simplified with OpenCC. See [docs/I18N.md](docs/I18N.md).
 - **Fixed scenarios:** reproducible lobbies that demonstrate specific mechanics (see below).
 
@@ -87,6 +99,7 @@ Open <http://127.0.0.1:5173/>. The scenario menu in the top-left starts a fixed 
 | `hero_damage` | The enemy hero breaks your armor and deals damage |
 | `mechanics` | Turn 3 with 10 gold: Magnetic, Dark Gift, Choose One and a discard activation |
 | `late` | Turn 10 of a bot-played game, for opponent ranks, hero powers and trinkets |
+| `showcase` | Every keyword effect at once: Taunt, Divine Shield, Stealth, Reborn, Windfury, Venomous and a golden Deathrattle minion |
 
 You can also create one through the API: `POST /api/games?scenario=deathrattle`.
 
