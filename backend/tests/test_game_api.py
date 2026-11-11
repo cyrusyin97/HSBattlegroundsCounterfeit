@@ -8,7 +8,7 @@ import pytest
 import taverngym
 
 from backend import main
-from backend.game_session import ActionRequest, GameSession, player_snapshot
+from backend.game_session import ActionRequest, GameSession
 
 client = TestClient(main.app)
 
@@ -168,15 +168,3 @@ def test_drag_from_shop_to_hand_to_board_and_sell(game):
     sold = apply({"kind": "sell", "entity_id": owned})
     assert owned not in [m["eid"] for m in sold["state"]["me"]["board"]]
     assert sold["state"]["me"]["gold"] == moved["state"]["me"]["gold"] + 1
-
-
-def test_reused_hero_powers_match_reading_every_seat():
-    # Opponents' hero powers are kept between actions until that opponent acts or a turn passes.
-    session = GameSession(taverngym.Game(seed=7))
-    while session.game.turn < 6 and not session.game.is_over() and not session.game.placements()[0]:
-        action = session.legal[session.game.bot_action(0)]
-        status, _ = session.submit(ActionRequest(**message(session, action)))
-        assert status == 200
-        fresh, _ = player_snapshot(session.game, session.id, session.read()["version"])
-        assert session.read() == fresh
-    assert session.game.turn == 6

@@ -21,8 +21,8 @@ class ActionRequest(BaseModel):
     action: dict[str, str | int]
 
 
-def player_snapshot(game, game_id, version, hero_powers=None):
-    raw, state, legal = seat_view(game, 0, hero_powers=hero_powers)
+def player_snapshot(game, game_id, version):
+    raw, state, legal = seat_view(game, 0)
     combat = next((r for r in raw["combats"] if 0 in (r["a"], r["b"])), None)
     if combat is not None:
         # Text debug logs are not a player-facing protocol. Attacks identify both entities.
@@ -42,8 +42,7 @@ class GameSession:
         self.lock = Lock()
         self.game = game
         game.set_record_log(True)
-        self.hero_powers = {}  # Opponents' hero powers by seat, as of the published game.
-        self.snapshot, self.legal = player_snapshot(game, self.id, 0, self.hero_powers)
+        self.snapshot, self.legal = player_snapshot(game, self.id, 0)
         self.applied = {}  # Successful request IDs and their committed versions.
 
     def read(self):
@@ -72,15 +71,11 @@ class GameSession:
                 return reject(422, "illegal_action")
             version = request.version + 1
             try:
-                acted = advance_bots(candidate)
-                # An opponent's hero power changes only when that opponent acts or a turn passes
-                # (counters tick, combat triggers), so the others are reused, not read again.
-                powers = {} if candidate.turn != self.game.turn else {
-                    seat: value for seat, value in self.hero_powers.items() if seat not in acted}
-                snapshot, legal = player_snapshot(candidate, self.id, version, powers)
+                advance_bots(candidate)
+                snapshot, legal = player_snapshot(candidate, self.id, version)
             except Exception:
                 logger.exception("Unable to finish request %s in game %s", request.request_id, self.id)
                 return reject(500, "engine_error")
-            self.game, self.snapshot, self.legal, self.hero_powers = candidate, snapshot, legal, powers
+            self.game, self.snapshot, self.legal = candidate, snapshot, legal
             self.applied[request.request_id] = version
             return 200, {**snapshot, "ok": True, "request_id": request.request_id}
