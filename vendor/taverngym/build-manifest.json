@@ -19,6 +19,9 @@
     "patch": "attack-impact.patch",
     "source_hash": "10fc8423c2f7d6ca",
     "wheel": "../wheels/taverngym-1.0.0+impact3-cp310-abi3-macosx_11_0_arm64.whl",
-    "wheel_sha256": "b752af64de657545348e26558d7aa439c7676b85758aabe44163f2124a22a6e7"
+    "wheel_sha256": "b752af64de657545348e26558d7aa439c7676b85758aabe44163f2124a22a6e7",
+    "linux_wheel": "../wheels/taverngym-1.0.0+impact3-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+    "linux_wheel_sha256": "6b9a966738b8653094caad82176fff1d36cdf536dcbf6b91b76286c52f93ce81",
+    "linux_build": "maturin 1.16.0 --zig --target x86_64-unknown-linux-gnu --compatibility manylinux2014, cross-compiled on macOS arm64"
   }
 }

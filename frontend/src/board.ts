@@ -1,5 +1,5 @@
 import './board.css';
-import { createGame, type Action, type Card, type GameSnapshot } from './game-api';
+import { createGame, readGame, type Action, type Card, type GameSnapshot } from './game-api';
 import { withCardImage } from './demo-art';
 import { badge, boardScale, byId, localPoint } from './pieces';
 import { playCombat } from './combat';
@@ -271,10 +271,21 @@ document.addEventListener('pointermove', e => {
 document.addEventListener('keydown',e=>{if(e.key==='Escape' && snapshot && !busy){const a=match('cancel');if(a)void commit(a);}});
 // Right-click cancels a pending choice such as spell targeting; the table never shows a context menu.
 table.addEventListener('contextmenu',e=>{e.preventDefault();if(snapshot && !busy){const a=match('cancel');if(a)void commit(a);}});
-async function start() {
+/** The game this browser last played, so a page refresh resumes it while the server keeps it. */
+const SAVED_GAME = 'battlegrounds.game';
+function remembered() { try { return localStorage.getItem(SAVED_GAME); } catch { return null; } }
+function remember(id: string) { try { localStorage.setItem(SAVED_GAME, id); } catch { /* private mode */ } }
+
+async function start(resume = false) {
   if(busy)return;
   lock(true); message(t().status.loading);
-  try {snapshot=await createGame(scene.value==='random'?undefined:scene.value);spell=undefined;render();}
+  try {
+    const saved = resume ? remembered() : null;
+    // A game the server no longer has (finished and cleaned up, or never saved) starts a new one.
+    const resumed = saved ? await readGame(saved).catch(() => undefined) : undefined;
+    snapshot = resumed ?? await createGame(scene.value==='random'?undefined:scene.value);
+    remember(snapshot.game_id); spell=undefined; render();
+  }
   catch {message(t().status.offline);}
   finally {lock(false);}
 }
@@ -310,5 +321,6 @@ const params=new URLSearchParams(location.search);
 const initial=params.get('scenario');
 if (initial && [...scene.options].some(o=>o.value===initial))scene.value=initial;
 view = createThreeView(host);
-scene.onchange=start;byId('restart').onclick=start;
-window.addEventListener('resize',resize);resize();void start();
+scene.onchange=()=>void start();byId('restart').onclick=()=>void start();
+// A scenario in the address starts that scenario; otherwise the last game resumes.
+window.addEventListener('resize',resize);resize();void start(!initial);

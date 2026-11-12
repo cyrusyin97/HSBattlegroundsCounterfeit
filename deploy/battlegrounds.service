@@ -1,0 +1,27 @@
+# systemd unit: keeps the game server running, restarts it after a crash, starts it at boot.
+# Installed by deploy/setup.sh to /etc/systemd/system/battlegrounds.service.
+[Unit]
+Description=Battlegrounds game server
+After=network.target
+
+[Service]
+User=battlegrounds
+Group=battlegrounds
+WorkingDirectory=/opt/battlegrounds
+# Every action is saved here, so a restart or redeploy resumes games in progress.
+Environment=BG_SAVE_PATH=/var/lib/battlegrounds/games.sqlite3
+# The built frontend, served by the same process.
+Environment=BG_STATIC_DIR=/opt/battlegrounds/frontend/dist
+# Listens on the droplet itself only; reach it through an SSH tunnel or deploy/Caddyfile.
+ExecStart=/opt/battlegrounds/.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=2
+# Creates /var/lib/battlegrounds owned by the service user.
+StateDirectory=battlegrounds
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

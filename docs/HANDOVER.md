@@ -83,7 +83,7 @@ npm ci
 .venv/bin/python scripts/restore_demo_art.py
 ```
 
-The bundled patched wheel is `taverngym-1.0.0+impact3-cp310-abi3-macosx_11_0_arm64.whl`. Other operating systems and Intel Macs require a corresponding native build and an updated dependency path. Once installed, importing `taverngym` does not require the engine checkout to sit inside the application directory. The source tree is needed for rebuilding and investigating engine behavior.
+The bundled patched wheels are `taverngym-1.0.0+impact3-cp310-abi3-macosx_11_0_arm64.whl` and, for Linux servers, `taverngym-1.0.0+impact3-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl`; the requirements files pick one by platform marker. Other platforms, such as Intel Macs, require a corresponding native build. Server deployment is described in `docs/DEPLOY.md`. Once installed, importing `taverngym` does not require the engine checkout to sit inside the application directory. The source tree is needed for rebuilding and investigating engine behavior.
 
 Once dependencies and artwork are installed, normal local play uses the local service and cached assets. Artwork restoration and dependency installation require network access when their files are unavailable locally.
 

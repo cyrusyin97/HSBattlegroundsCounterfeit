@@ -1,5 +1,6 @@
 """A single local player and seven TavernGym opponents, with atomic client commands."""
 import logging
+import time
 from threading import Lock
 from uuid import uuid4
 
@@ -9,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend.bots import advance_bots
 # race_counts stays importable from here for existing callers.
 from backend.projection import race_counts, seat_view, select, targeted_spells, visible_cards  # noqa: F401
+from backend.store import Save, SaveStore
 
 
 logger = logging.getLogger(__name__)
@@ -36,21 +38,52 @@ def player_snapshot(game, game_id, version):
              "legal_actions": list(legal.values()), "combat": combat}, legal)
 
 
+def finished(game):
+    """The game is over for the player: it ended, or seat 0 was eliminated and only bots remain."""
+    return bool(game.is_over() or game.placements()[0])
+
+
 class GameSession:
-    def __init__(self, game: taverngym.Game):
-        self.id = uuid4().hex
+    def __init__(self, game: taverngym.Game, game_id: str | None = None, version: int = 0,
+                 applied: dict[str, int] | None = None, store: SaveStore | None = None):
+        """Wrap a new game, or a restored one when `game_id` and `version` come from its save."""
+        self.id = game_id or uuid4().hex
         self.lock = Lock()
         self.game = game
+        self.store = store
+        self.closed = False
+        """Set when the session leaves memory; a request still holding it must load it again."""
+        self.touched = time.time()
         game.set_record_log(True)
-        self.snapshot, self.legal = player_snapshot(game, self.id, 0)
-        self.applied = {}  # Successful request IDs and their committed versions.
+        self.snapshot, self.legal = player_snapshot(game, self.id, version)
+        self.applied = dict(applied or {})  # Successful request IDs and their committed versions.
+        if store is not None and game_id is None:
+            store.write(self.id, self.save(game, version, self.applied))
+
+    @classmethod
+    def restore(cls, game_id: str, save: Save, store: SaveStore | None = None):
+        return cls(taverngym.Game.from_json(save.state), game_id, save.version, save.applied, store)
+
+    @staticmethod
+    def save(game, version, applied):
+        return Save(version, game.state_json(), applied, finished(game))
+
+    @property
+    def over(self):
+        return finished(self.game)
 
     def read(self):
         with self.lock:
+            self.touched = time.time()
             return self.snapshot
 
     def submit(self, request: ActionRequest):
+        """The status and response body, or None when this session already left memory."""
         with self.lock:
+            if self.closed:
+                return None
+            self.touched = time.time()
+
             def reject(status, code, **extra):
                 return status, {**self.snapshot, "ok": False, "request_id": request.request_id,
                                 "error": {"code": code, **extra}}
@@ -76,6 +109,13 @@ class GameSession:
             except Exception:
                 logger.exception("Unable to finish request %s in game %s", request.request_id, self.id)
                 return reject(500, "engine_error")
-            self.game, self.snapshot, self.legal = candidate, snapshot, legal
-            self.applied[request.request_id] = version
+            applied = {**self.applied, request.request_id: version}
+            if self.store is not None:
+                # Save before answering: a response the player sees is never lost by a restart.
+                try:
+                    self.store.write(self.id, self.save(candidate, version, applied))
+                except Exception:
+                    logger.exception("Unable to save game %s at version %s", self.id, version)
+                    return reject(500, "save_error")
+            self.game, self.snapshot, self.legal, self.applied = candidate, snapshot, legal, applied
             return 200, {**snapshot, "ok": True, "request_id": request.request_id}

@@ -1,0 +1,10 @@
+# Optional: open the game in a browser at a domain, with HTTPS and a password, instead of an
+# SSH tunnel. See docs/DEPLOY.md, 方式 B. Replace the domain and the password hash.
+game.example.com {
+	# Generate the hash on the droplet with: caddy hash-password
+	basic_auth {
+		player $2a$14$REPLACE_WITH_THE_OUTPUT_OF_caddy_hash-password
+	}
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8000
+}

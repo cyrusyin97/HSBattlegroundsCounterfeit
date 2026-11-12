@@ -116,7 +116,7 @@ export interface ActionRequest {
 }
 export type ActionResult = GameSnapshot & { request_id: string } & (
   | { ok: true }
-  | { ok: false; error: { code: 'illegal_action' | 'stale_version' | 'duplicate_request' | 'engine_error'; applied_version?: number } }
+  | { ok: false; error: { code: 'illegal_action' | 'stale_version' | 'duplicate_request' | 'engine_error' | 'save_error'; applied_version?: number } }
 );
 
 export async function createGame(scenario?: string): Promise<GameSnapshot> {
