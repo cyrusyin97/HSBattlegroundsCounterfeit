@@ -71,10 +71,15 @@ jobs:
           KNOWN_HOSTS: ${{ secrets.DROPLET_KNOWN_HOSTS }}
         run: |
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          # Secrets pasted into GitHub's web form get CRLF line endings, which OpenSSH rejects.
+          printf '%s\n' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null; then
+            echo "::error::DROPLET_SSH_KEY is not a usable private key. Set it again with: gh secret set DROPLET_SSH_KEY < ~/.ssh/battlegrounds_ci"
+            exit 1
+          fi
           # Only the droplet's own host key is trusted, so a different machine at that IP is refused.
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           printf 'Host *\n  IdentityFile ~/.ssh/deploy_key\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n  BatchMode yes\n' > ~/.ssh/config
       # The art is not in git, so this build has none; push.sh keeps the art already on the droplet.
       - name: Deploy
@@ -82,4 +87,4 @@ jobs:
         env:
           HOST: ${{ secrets.DROPLET_HOST }}
           DEPLOY_USER: ${{ vars.DROPLET_USER || 'root' }}
-        run: deploy/push.sh "$DEPLOY_USER@$HOST"
+        run: deploy/push.sh "$DEPLOY_USER@$(printf '%s' "$HOST" | tr -d '[:space:]')"
