@@ -159,7 +159,7 @@ docs/HANDOVER.md    詳細的設計與工程說明
 
 規則來自 [MCG-NJU/AutoTavern](https://github.com/MCG-NJU/AutoTavern)（TavernGym），固定在 commit `fb61201a557ddd36a411cf44aac51ce4d9b606ce`。
 
-- **附帶的安裝檔：** 套用修補的 `1.0.0+impact3` 版本。
+- **附帶的安裝檔：** 套用修補的 `1.0.0+impact4` 版本。
 - **引擎修補：** `vendor/taverngym/attack-impact.patch`。
 - **建置紀錄：** `vendor/taverngym/build-manifest.json`。
 

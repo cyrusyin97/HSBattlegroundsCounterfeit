@@ -162,20 +162,30 @@
      }
      if ctx.keep_venom {
          ctx.keep_venom = false;
-@@ -649,7 +683,10 @@
+@@ -649,8 +683,11 @@
          }
      }
      if !immune_attacking {
 -        ctx.damage(defender, attacker, atk_d);
 +        contact_damage(ctx, defender, attacker, atk_d, &mut impact);
-+    }
+     }
 +    if let Some(impact) = impact {
 +        ctx.frame_impacts.push(impact);
-     }
++    }
      ctx.defer_hits = false;
      ctx.flush_deferred();
+     ctx.emit(Event::AttackDone { side, attacker });
 --- a/crates/taverngym/src/debug.rs
 +++ b/crates/taverngym/src/debug.rs
+@@ -11,7 +11,7 @@
+ use crate::cards::{CardId, CardKind, db};
+ use crate::engine::{CombatRecord, Ctx, Game, Phase};
+ use crate::script::{Shown, flag, implemented, script};
+-use crate::state::{Item, Minion, Pending};
++use crate::state::{Item, Minion, Pending, Player};
+ use crate::types::{Kw, PlayerId, Races, Side};
+ 
+ fn kind_name(k: CardKind) -> &'static str {
 @@ -589,9 +589,16 @@
          "winner": r.winner,
          "damage": r.damage,
@@ -193,7 +203,56 @@
              "boards": [
                  f.boards[0].iter().map(minion_json).collect::<Vec<_>>(),
                  f.boards[1].iter().map(minion_json).collect::<Vec<_>>(),
-@@ -1665,6 +1672,8 @@
+@@ -613,23 +620,30 @@
+ /// A public view without the combat replays (for a front end that already has them).
+ pub fn public_view_without_combats(g: &Game, p: PlayerId) -> Value {
+     view_for(g, p, true, false)
++}
++
++/// A Hero Power as the whole table sees it: the card with its static text, and its counters.
++/// Opponents get only this; the owner's view adds the price, usability and live text.
++fn table_power_json(pl: &Player, slot: usize) -> Option<Value> {
++    pl.powers.get(slot).map(|h| {
++        let s = script(h.card);
++        let mut v = card_json(h.card);
++        v["slot"] = json!(slot);
++        v["passive"] = json!(s.is_none_or(|s| s.hero_power.is_none() || s.has_flag(flag::PASSIVE)));
++        v["uses_turn"] = json!(h.uses_turn);
++        v["uses_game"] = json!(h.uses_game);
++        v["counter"] = json!(h.counter);
++        v
++    })
+ }
+ 
+ fn view_for(g: &Game, p: PlayerId, public: bool, combats: bool) -> Value {
+     let pl = &g.players[p];
+     let power_json = |slot: usize| {
+-        pl.powers.get(slot).map(|h| {
+-            let s = script(h.card);
+-            let mut v = card_json(h.card);
+-            v["slot"] = json!(slot);
++        table_power_json(pl, slot).map(|mut v| {
+             v["action"] = json!(A_HERO_POWER + slot);
+             v["price"] = json!(g.hero_power_price(p, slot));
+             v["usable"] = json!(g.hero_power_usable(p, slot));
+-            v["passive"] =
+-                json!(s.is_none_or(|s| s.hero_power.is_none() || s.has_flag(flag::PASSIVE)));
+-            v["uses_turn"] = json!(h.uses_turn);
+-            v["uses_game"] = json!(h.uses_game);
+-            v["counter"] = json!(h.counter);
+             v
+         })
+     };
+@@ -729,6 +743,8 @@
+             json!({
+                 "id": o.id,
+                 "hero": o.hero.map(card_json),
++                // Static texts: live numbers would need a recruit context for each opponent.
++                "hero_powers": (0..o.powers.len()).filter_map(|i| table_power_json(o, i)).collect::<Vec<_>>(),
+                 "health": o.health,
+                 "armor": o.armor,
+                 "tier": o.tier,
+@@ -1665,6 +1681,8 @@
                          winner: out.winner,
                          damage: out.damage,
                          truncated: out.truncated,
@@ -209,7 +268,7 @@
  [project]
  name = "taverngym"
 -version = "1.0.0"
-+version = "1.0.0+impact3"
++version = "1.0.0+impact4"
  description = "TavernGym: a Hearthstone Battlegrounds solo-mode simulator with a reinforcement-learning interface"
  readme = "README.md"
  requires-python = ">=3.10"

@@ -141,15 +141,14 @@ def seat_view(game, seat, raw=None):
                          "win_streak upgrade_price refresh_price minion_price frozen ended_turn board hand shop "
                          "pending casting cancellable trinkets quests rewards secrets next_opponent "
                          "last_opponent next_is_ghost effects buddy_button dark_gift deity chronum_balance")
-    state["opponents"] = [select(op, "id hero health armor tier alive placement last_damage win_streak "
-                                    "trinkets last_warband seen_board seen_turn is_next_opponent")
+    # Opponents' Hero Powers carry their static texts; live numbers would cost a view per seat.
+    state["opponents"] = [select(op, "id hero hero_powers health armor tier alive placement last_damage "
+                                    "win_streak trinkets last_warband seen_board seen_turn is_next_opponent")
                           for op in raw["opponents"]]
     lobby = raw.get("lobby_races") or []
     state["me"]["warband"] = {"size": len(raw["me"]["board"]), "races": race_counts(raw["me"]["board"], lobby)}
     for op, seen in zip(state["opponents"], raw["opponents"]):
-        # Hero powers are public at the table but absent from this seat's view, so read each
-        # opponent's own seat, without combat replays. Their warband is reduced to tribe counts.
-        op["hero_powers"] = json.loads(game.public_view_without_combats(op["id"]))["me"]["hero_powers"]
+        # Their warband is reduced to tribe counts.
         op["warband"] = last_warband(seen["last_warband"])
     state["me"]["dark_gift"] = select(state["me"]["dark_gift"], "available uses max_uses cost unlock_turn")
     return raw, visible_cards(state), legal

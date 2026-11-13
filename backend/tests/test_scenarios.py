@@ -1,3 +1,4 @@
+import json
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -5,7 +6,8 @@ import pytest
 
 from backend import main
 from backend.game_session import race_counts
-from backend.scenarios import SCENARIOS
+from backend.projection import seat_view
+from backend.scenarios import SCENARIOS, make_scenario
 
 client = TestClient(main.app)
 
@@ -176,6 +178,18 @@ def test_late_shows_opponent_powers_and_trinkets(start):
     assert "board" not in opponents[0]
     assert any(op["trinkets"] for op in opponents)
     assert all("win_streak" in op for op in opponents)
+
+
+def test_opponent_powers_match_their_own_seats():
+    # Opponents' powers come from seat 0's view with static texts; everything else matches
+    # what each opponent's own seat shows.
+    game = make_scenario("late")
+    _, state, _ = seat_view(game, 0)
+    for op in state["opponents"]:
+        own = json.loads(game.public_view_without_combats(op["id"]))["me"]["hero_powers"]
+        fields = "id slot passive uses_turn uses_game counter".split()
+        assert [{k: p[k] for k in fields} for p in op["hero_powers"]] == [{k: p[k] for k in fields} for p in own]
+        assert all("price" not in p and "usable" not in p for p in op["hero_powers"])
 
 
 def test_all_tribe_minions_count_for_every_lobby_tribe():

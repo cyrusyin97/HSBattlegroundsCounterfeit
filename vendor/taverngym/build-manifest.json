@@ -15,13 +15,13 @@
   "isolated_games": 20,
   "isolated_truncated_combats": 0,
   "local_replay_build": {
-    "package_version": "1.0.0+impact3",
+    "package_version": "1.0.0+impact4",
     "patch": "attack-impact.patch",
-    "source_hash": "10fc8423c2f7d6ca",
-    "wheel": "../wheels/taverngym-1.0.0+impact3-cp310-abi3-macosx_11_0_arm64.whl",
-    "wheel_sha256": "b752af64de657545348e26558d7aa439c7676b85758aabe44163f2124a22a6e7",
-    "linux_wheel": "../wheels/taverngym-1.0.0+impact3-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-    "linux_wheel_sha256": "6b9a966738b8653094caad82176fff1d36cdf536dcbf6b91b76286c52f93ce81",
+    "source_hash": "64856c7b0d1e372a",
+    "wheel": "../wheels/taverngym-1.0.0+impact4-cp310-abi3-macosx_11_0_arm64.whl",
+    "wheel_sha256": "1cb05a400981d1be280568fd0008fadebdb103d0dc1434ea516691964af47037",
+    "linux_wheel": "../wheels/taverngym-1.0.0+impact4-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+    "linux_wheel_sha256": "80efd53bf6ed362aedf6991705483a701de16d9498a86acf0caa85edcbed13be",
     "linux_build": "maturin 1.16.0 --zig --target x86_64-unknown-linux-gnu --compatibility manylinux2014, cross-compiled on macOS arm64"
   }
 }
