@@ -1,0 +1,85 @@
+# Test every push and pull request; after a push to main passes, deploy it to the droplet with
+# deploy/push.sh. Setup (secrets, host key) is in docs/DEPLOY.md, "自動部署".
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      # Installs the vendored Linux engine wheel, the same one the droplet uses.
+      - run: python -m pip install -r backend/requirements.txt
+      - run: python -m pytest backend/tests -q
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run check:frontend
+      - run: npm run test:frontend
+
+  deploy:
+    needs: test
+    # Pull requests, including ones from forks, never reach this job or its secrets.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: droplet
+    # One deploy at a time; a newer push waits for the running one instead of cutting it off.
+    concurrency:
+      group: droplet
+      cancel-in-progress: false
+    steps:
+      - name: Check deploy settings
+        id: settings
+        env:
+          HOST: ${{ secrets.DROPLET_HOST }}
+          KEY: ${{ secrets.DROPLET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DROPLET_KNOWN_HOSTS }}
+        run: |
+          if [ -n "$HOST" ] && [ -n "$KEY" ] && [ -n "$KNOWN_HOSTS" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Deploy skipped: set the DROPLET_HOST, DROPLET_SSH_KEY and DROPLET_KNOWN_HOSTS secrets (docs/DEPLOY.md)."
+          fi
+      - if: steps.settings.outputs.ready == 'true'
+        uses: actions/checkout@v7
+      - if: steps.settings.outputs.ready == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - if: steps.settings.outputs.ready == 'true'
+        run: npm ci
+      - name: Set up SSH
+        if: steps.settings.outputs.ready == 'true'
+        env:
+          KEY: ${{ secrets.DROPLET_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DROPLET_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Only the droplet's own host key is trusted, so a different machine at that IP is refused.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host *\n  IdentityFile ~/.ssh/deploy_key\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n  BatchMode yes\n' > ~/.ssh/config
+      # The art is not in git, so this build has none; push.sh keeps the art already on the droplet.
+      - name: Deploy
+        if: steps.settings.outputs.ready == 'true'
+        env:
+          HOST: ${{ secrets.DROPLET_HOST }}
+          DEPLOY_USER: ${{ vars.DROPLET_USER || 'root' }}
+        run: deploy/push.sh "$DEPLOY_USER@$HOST"

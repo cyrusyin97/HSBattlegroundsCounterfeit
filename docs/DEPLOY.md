@@ -103,6 +103,57 @@ deploy/push.sh root@203.0.113.7
 
 **進行中的對局不會遺失。** 重啟後，瀏覽器的下一次點擊會從存檔接著玩。
 
+設定好下面的自動部署後，推送到 GitHub 的 `main` 就會自動做這件事，不用在本機執行。
+
+## 自動部署（GitHub Actions）
+
+`.github/workflows/deploy.yml` 會：
+- 每次推送和每個 pull request：在 Linux 上跑後端測試（用和 droplet 相同的 Linux 版引擎）和前端檢查。
+- 推送到 `main` 且測試通過後：執行 `deploy/push.sh`，部署到 droplet。
+- 也可以在 GitHub 的 **Actions** 分頁選 **Test and deploy**，按 **Run workflow** 手動部署。
+- 還沒設定下面的 secrets 時，部署會跳過，只跑測試。
+
+**卡圖不會經過 GitHub。** 卡圖不在 git 裡，所以 GitHub 上打包的前端沒有卡圖。`push.sh` 發現打包結果沒有卡圖時，會保留 droplet 上已有的卡圖，不會刪掉。之後要更新卡圖，在本機執行一次 `deploy/push.sh`。
+
+### 設定步驟（只要做一次）
+
+以下指令都在本機執行。
+
+1. 產生一把只給 GitHub 用的 SSH 金鑰（不要用你自己登入用的那把）：
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C battlegrounds-ci -f ~/.ssh/battlegrounds_ci
+   ```
+2. 讓 droplet 接受這把金鑰：
+   ```bash
+   ssh-copy-id -i ~/.ssh/battlegrounds_ci.pub root@203.0.113.7
+   ```
+3. 把三個值存成 GitHub secrets。可以用 `gh` 指令，或在 GitHub 網頁的 **Settings → Secrets and variables → Actions → New repository secret** 貼上。
+   ```bash
+   gh secret set DROPLET_HOST --body 203.0.113.7
+   ```
+   ```bash
+   gh secret set DROPLET_SSH_KEY < ~/.ssh/battlegrounds_ci
+   ```
+   ```bash
+   ssh-keygen -F 203.0.113.7 | grep -v '^#' | gh secret set DROPLET_KNOWN_HOSTS
+   ```
+
+| Secret | 內容 |
+|---|---|
+| `DROPLET_HOST` | droplet 的 IP |
+| `DROPLET_SSH_KEY` | 第 1 步產生的私鑰 `~/.ssh/battlegrounds_ci` |
+| `DROPLET_KNOWN_HOSTS` | droplet 的主機金鑰，取自你本機已經信任的紀錄 |
+
+- **IP 為什麼放在 secret，不放在一般變數？** 這個 repo 是公開的，Actions 的執行紀錄任何人都看得到。secret 在紀錄裡會被遮成 `***`。
+- **`DROPLET_KNOWN_HOSTS` 的作用：** GitHub 只會連線到主機金鑰相符的機器。如果有人冒充這個 IP，部署會直接失敗，不會把金鑰交出去。第 3 步的指令取自你本機已經連過的紀錄，所以要先用 `ssh root@203.0.113.7` 成功登入過一次。之後重灌 droplet，主機金鑰會變，要重新設定這個 secret。
+- 預設用 `root` 登入。要換帳號，在同一頁的 **Variables** 加一個 `DROPLET_USER`。
+
+### 安全注意事項
+
+- 這把金鑰能以 root 登入 droplet。只有推送到 `main`（也就是你自己）和手動執行才會用到它；別人送的 pull request 只跑測試，拿不到 secrets。
+- 想在每次部署前手動核准：到 **Settings → Environments → droplet**，加上 **Required reviewers**。這個 environment 會在第一次部署時自動建立。
+- 要撤銷這把金鑰：在 droplet 上編輯 `/root/.ssh/authorized_keys`，刪掉結尾是 `battlegrounds-ci` 的那一行。
+
 ## 日常操作（在 droplet 上執行）
 
 | 要做什麼 | 指令 |
