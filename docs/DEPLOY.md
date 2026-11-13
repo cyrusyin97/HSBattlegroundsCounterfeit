@@ -114,6 +114,20 @@ deploy/push.sh root@203.0.113.7
 | 停止 | `systemctl stop battlegrounds` |
 | 存檔位置 | `/var/lib/battlegrounds/games.sqlite3` |
 
+## 看每個動作花了多少時間
+
+每個動作的回應都帶有 `Server-Timing` 標頭。在 Chrome 開發者工具的 Network 分頁點一個 `actions` 請求，打開 Timing，會看到伺服器各步驟的毫秒數：
+
+| 名稱 | 內容 |
+|---|---|
+| `engine` | 引擎執行你的動作和 7 個 bot |
+| `snapshot` | 組裝回傳給瀏覽器的畫面資料 |
+| `save` | 寫入 SQLite 存檔 |
+| `json` | 把回應轉成 JSON |
+| `total` | 伺服器處理這個請求的總時間 |
+
+同一頁的 **Waiting for server response** 減掉 `total`，大約就是網路來回的時間。**Content Download** 是下載回應的時間。API 回應用 gzip 壓縮，靜態檔案（前端和卡圖）不壓縮。
+
 ## 存檔的保留規則
 
 設定在 `backend/main.py` 最上面：

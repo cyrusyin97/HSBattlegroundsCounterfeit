@@ -134,8 +134,9 @@ def test_hero_damage_replay_preserves_pre_damage_state(start):
     assert (after["armor"], after["health"]) == (0, 29)
     assert after["hero"]["id"] == snapshot["state"]["me"]["hero"]["id"]
     assert (resolved["state"]["me"]["armor"], resolved["state"]["me"]["health"]) == (0, 29)
-    # A later shop action must retain this historical settlement, not overwrite it.
-    assert step(resolved, "freeze")["combat"] == replay
+    # Only the response that finished the combat carries it; a reload right after still gets it.
+    assert client.get(f"/api/games/{resolved['game_id']}").json()["combat"] == replay
+    assert step(resolved, "freeze")["combat"] is None
 
 
 def test_mechanics(start):

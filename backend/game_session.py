@@ -1,4 +1,5 @@
 """A single local player and seven TavernGym opponents, with atomic client commands."""
+import json
 import logging
 import time
 from threading import Lock
@@ -23,9 +24,15 @@ class ActionRequest(BaseModel):
     action: dict[str, str | int]
 
 
-def player_snapshot(game, game_id, version):
-    raw, state, legal = seat_view(game, 0)
-    combat = next((r for r in raw["combats"] if 0 in (r["a"], r["b"])), None)
+def player_snapshot(game, game_id, version, with_combat=False):
+    """The player's snapshot. Only the response that finishes a combat carries its replay.
+
+    The engine keeps the last combat in the seat's view through the whole next recruit phase,
+    but the client plays a replay once, so later snapshots read the view without combats.
+    """
+    raw = json.loads(game.public_view(0) if with_combat else game.public_view_without_combats(0))
+    raw, state, legal = seat_view(game, 0, raw)
+    combat = next((r for r in raw["combats"] if 0 in (r["a"], r["b"])), None) if with_combat else None
     if combat is not None:
         # Text debug logs are not a player-facing protocol. Attacks identify both entities.
         combat["frames"] = [select(frame, "boards attacks impacts") for frame in combat["frames"]]
@@ -77,8 +84,13 @@ class GameSession:
             self.touched = time.time()
             return self.snapshot
 
-    def submit(self, request: ActionRequest):
-        """The status and response body, or None when this session already left memory."""
+    def submit(self, request: ActionRequest, timings: dict[str, float] | None = None):
+        """The status and response body, or None when this session already left memory.
+
+        Pass `timings` to receive milliseconds spent in the engine, the snapshot and the save.
+        """
+        timings = {} if timings is None else timings
+        clock = time.perf_counter
         with self.lock:
             if self.closed:
                 return None
@@ -97,6 +109,7 @@ class GameSession:
                 return reject(422, "illegal_action")
 
             # A failed step, bot turn or projection must not mutate the published game.
+            started = clock()
             candidate = self.game.copy()
             try:
                 candidate.step(0, index)
@@ -105,7 +118,12 @@ class GameSession:
             version = request.version + 1
             try:
                 advance_bots(candidate)
-                snapshot, legal = player_snapshot(candidate, self.id, version)
+                timings["engine"] = (clock() - started) * 1000
+                started = clock()
+                # A combat ends the turn, so the turn advances, or ends the player's game.
+                fought = candidate.turn != self.game.turn or finished(candidate)
+                snapshot, legal = player_snapshot(candidate, self.id, version, with_combat=fought)
+                timings["snapshot"] = (clock() - started) * 1000
             except Exception:
                 logger.exception("Unable to finish request %s in game %s", request.request_id, self.id)
                 return reject(500, "engine_error")
@@ -113,7 +131,9 @@ class GameSession:
             if self.store is not None:
                 # Save before answering: a response the player sees is never lost by a restart.
                 try:
+                    started = clock()
                     self.store.write(self.id, self.save(candidate, version, applied))
+                    timings["save"] = (clock() - started) * 1000
                 except Exception:
                     logger.exception("Unable to save game %s at version %s", self.id, version)
                     return reject(500, "save_error")

@@ -130,3 +130,9 @@ def test_without_saves_only_old_games_leave_memory(monkeypatch):
     assert game_id in main.sessions
     main.sweep(now=touched + main.IDLE_KEEP_SECONDS + 1)
     assert game_id not in main.sessions
+
+
+def test_save_time_is_reported(saves):
+    snapshot = client.post("/api/games?scenario=showcase").json()
+    names = [part.split(";")[0] for part in act(snapshot).headers["server-timing"].split(", ")]
+    assert names == ["engine", "snapshot", "save", "json", "total"]

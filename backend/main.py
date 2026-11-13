@@ -15,7 +15,8 @@ from threading import Lock
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 import taverngym
@@ -62,10 +63,10 @@ def get_session(game_id: str) -> GameSession:
     return session
 
 
-def submit(game_id: str, request: ActionRequest):
+def submit(game_id: str, request: ActionRequest, timings: dict[str, float] | None = None):
     # A session evicted while this request waited for its lock is loaded again from the save.
     for _ in range(3):
-        result = get_session(game_id).submit(request)
+        result = get_session(game_id).submit(request, timings)
         if result is not None:
             return result
     raise HTTPException(503, "busy")
@@ -116,6 +117,31 @@ async def lifespan(_app):
 app = FastAPI(title="Local Battlegrounds", lifespan=lifespan)
 
 
+class CompressApi:
+    """Gzip API responses, which are JSON of up to a few hundred KB. Static files are left alone:
+    card art is already compressed, and compressing it again would only cost the server CPU."""
+
+    def __init__(self, app):
+        self.app = app
+        self.gzip = GZipMiddleware(app, minimum_size=1024, compresslevel=6)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].startswith("/api/"):
+            await self.gzip(scope, receive, send)
+        else:
+            await self.app(scope, receive, send)
+
+
+app.add_middleware(CompressApi)
+
+
+def server_timing(timings: dict[str, float], started: float) -> dict[str, str]:
+    """A Server-Timing header, which browser developer tools show under the request's Timing tab."""
+    parts = [f"{name};dur={ms:.1f}" for name, ms in timings.items()]
+    parts.append(f"total;dur={(time.perf_counter() - started) * 1000:.1f}")
+    return {"Server-Timing": ", ".join(parts)}
+
+
 @app.get("/api/scenarios")
 def list_scenarios():
     return [{"id": key, "instructions": value} for key, value in SCENARIOS.items()]
@@ -138,8 +164,14 @@ def read_game(game_id: str):
 
 @app.post("/api/games/{game_id}/actions")
 def submit_action(game_id: str, request: ActionRequest):
-    status, result = submit(game_id, request)
-    return JSONResponse(result, status_code=status)
+    started, timings = time.perf_counter(), {}
+    status, result = submit(game_id, request, timings)
+    # Encoding the JSON body is part of the response cost, so it is timed too.
+    encoding = time.perf_counter()
+    body = JSONResponse(result, status_code=status).body
+    timings["json"] = (time.perf_counter() - encoding) * 1000
+    return Response(body, status_code=status, media_type="application/json",
+                    headers=server_timing(timings, started))
 
 
 @app.websocket("/ws/games/{game_id}")

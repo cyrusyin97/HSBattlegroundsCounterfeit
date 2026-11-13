@@ -168,3 +168,18 @@ def test_drag_from_shop_to_hand_to_board_and_sell(game):
     sold = apply({"kind": "sell", "entity_id": owned})
     assert owned not in [m["eid"] for m in sold["state"]["me"]["board"]]
     assert sold["state"]["me"]["gold"] == moved["state"]["me"]["gold"] + 1
+
+
+def test_action_response_is_compressed_and_timed(game):
+    response = client.post(f"/api/games/{game.id}/actions", headers={"Accept-Encoding": "gzip"},
+                           json=message(game, {"kind": "freeze"}))
+    assert response.status_code == 200 and response.json()["ok"]
+    assert response.headers["content-encoding"] == "gzip"
+    names = [part.split(";")[0] for part in response.headers["server-timing"].split(", ")]
+    assert names == ["engine", "snapshot", "json", "total"]
+
+
+def test_non_api_responses_are_not_compressed():
+    response = client.get("/docs", headers={"Accept-Encoding": "gzip"})
+    assert response.status_code == 200
+    assert "content-encoding" not in response.headers
