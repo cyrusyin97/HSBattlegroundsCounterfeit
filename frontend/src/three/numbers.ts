@@ -8,7 +8,8 @@ import type { Face } from './entities';
 /** Face texture width in pixels; sizes below are in 256ths of it, as in the face drawing. */
 export const FACE_PX = 512;
 const U = FACE_PX / 256;
-const GLYPHS = '0123456789♥–';
+// '-' is for health below zero, shown on a minion between the killing hit and its removal.
+const GLYPHS = '0123456789-♥–';
 const FONT = (size: number) => `bold ${size * U}px Georgia,serif`;
 const OUTLINE = '#1a0d06';
 const LINE = 11 * U, BLUR = 6 * U, DROP = 4 * U;
