@@ -12,8 +12,8 @@ import { traits } from '../core/traits';
 import { artFor, drawArt, requestArt } from './art';
 import * as tex from './textures';
 import { CATALOGS, cardName, fontStack, locale, type Locale } from '../i18n';
+import { CardNumbers, FACE_PX, numbersKey } from './numbers';
 
-const FACE_PX = 512;
 export const ICE_OPACITY = 0.42;
 
 /** Shared sizes and geometry for every card on one stage. */
@@ -63,6 +63,9 @@ export class CardKit {
   readonly tauntLift: number;
   /** The card's edge, polished brass like the face's frame. */
   readonly bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xc8964a, metalness: 0.9, roughness: 0.2 });
+  /** Face pictures without their numbers, shared by every card that shows the same one. */
+  readonly faces: FaceCache;
+  readonly numbers: CardNumbers;
 
   constructor(readonly stage: Stage) {
     // Size cards so a warband card covers the same 116 × 148 board pixels as the DOM token.
@@ -167,10 +170,64 @@ export class CardKit {
     this.poisonMaterial = new THREE.MeshBasicMaterial({ map: tex.poisonTexture(), transparent: true });
     this.shadow = new THREE.PlaneGeometry(this.width * 1.3, this.height * 0.95);
     this.shadow.rotateX(-Math.PI / 2);
+    const faceHeight = Math.round(FACE_PX * this.height / this.width);
+    this.faces = new FaceCache(faceHeight, stage.maxAnisotropy);
+    this.numbers = new CardNumbers(stage.maxAnisotropy, this.width, this.height, faceHeight);
   }
 
   /** Scale that makes a card on board row `y` look as large as one on the warband row. */
   scaleAt(y: number) { return worldPerPixel(this.stage, y) / this.perPixel; }
+}
+
+interface FaceEntry { key: string; canvas: HTMLCanvasElement; texture: THREE.CanvasTexture; users: number }
+/** How many face pictures no card shows any more stay drawn, for cards that come back. */
+const IDLE_FACES = 24;
+
+/**
+ * Face pictures by everything they show except the numbers: card, golden, language, tier,
+ * frozen, artwork. A picture is drawn and uploaded once however many cards show it, and
+ * a card whose numbers change keeps its picture.
+ */
+class FaceCache {
+  private readonly live = new Map<string, FaceEntry>();
+  /** Pictures no card shows, oldest first. */
+  private readonly idle = new Map<string, FaceEntry>();
+  /** Shown before a card's first picture, so its material always has a map. */
+  readonly blank = new THREE.DataTexture(new Uint8Array(4), 1, 1);
+
+  constructor(private readonly height: number, private readonly anisotropy: number) {
+    this.blank.needsUpdate = true;
+  }
+
+  acquire(key: string, draw: (canvas: HTMLCanvasElement) => void): FaceEntry {
+    let entry = this.live.get(key) ?? this.idle.get(key);
+    if (!entry) {
+      const canvas = document.createElement('canvas');
+      canvas.width = FACE_PX;
+      canvas.height = this.height;
+      draw(canvas);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = this.anisotropy;
+      entry = { key, canvas, texture, users: 0 };
+    }
+    this.idle.delete(key);
+    this.live.set(key, entry);
+    entry.users++;
+    return entry;
+  }
+
+  release(entry: FaceEntry) {
+    if (--entry.users > 0) return;
+    this.live.delete(entry.key);
+    this.idle.set(entry.key, entry);
+    for (const [key, old] of this.idle) {
+      if (this.idle.size <= IDLE_FACES) break;
+      this.idle.delete(key);
+      old.texture.dispose();
+      old.canvas.width = old.canvas.height = 0;
+    }
+  }
 }
 
 /**
@@ -302,7 +359,8 @@ export class CardObject {
   private flashLeft = 0;
   private readonly tilt = new THREE.Group();
   private readonly spin = new THREE.Group();
-  private readonly faceMesh: THREE.Mesh;
+  private readonly faceMesh: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshStandardMaterial>;
+  private readonly numbers: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   /** Shown while the face is frozen. Effects animate its scale and opacity. */
   readonly ice: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
   private readonly bulwark: THREE.Mesh;
@@ -320,21 +378,18 @@ export class CardObject {
   private windy = false;
   private disposed = false;
   private age = Math.random() * 10;
-  private readonly canvas = document.createElement('canvas');
-  private readonly texture: THREE.CanvasTexture;
-  private faceKey = '';
+  private picture?: FaceEntry;
+  private numbersKey = '';
   private readonly current: Pose = { pos: new THREE.Vector3(), roll: 0, scale: 0 };
   private readonly rest: Pose = { pos: new THREE.Vector3(), roll: 0, scale: 1 };
   private placed = false;
 
   constructor(private readonly kit: CardKit) {
-    this.canvas.width = FACE_PX;
-    this.canvas.height = Math.round(FACE_PX * kit.height / kit.width);
-    this.texture = new THREE.CanvasTexture(this.canvas);
-    this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.anisotropy = kit.stage.maxAnisotropy;
-    this.faceMesh = new THREE.Mesh(kit.face, new THREE.MeshStandardMaterial({ map: this.texture, roughness: 0.6 }));
+    this.faceMesh = new THREE.Mesh(kit.face, new THREE.MeshStandardMaterial({ map: kit.faces.blank, roughness: 0.6 }));
     this.faceMesh.position.z = 0.001;
+    // Over the face and under the stealth, golden and windfury layers, as when drawn on it.
+    this.numbers = kit.numbers.mesh();
+    this.numbers.position.z = 0.0025;
     this.ice = new THREE.Mesh(kit.ice, new THREE.MeshStandardMaterial({
       color: 0xc8f3ff, emissive: 0x2a6f8f, roughness: 0.15, metalness: 0.1,
       transparent: true, opacity: ICE_OPACITY, depthWrite: false,
@@ -379,7 +434,7 @@ export class CardObject {
       mesh.raycast = () => {};
       mesh.visible = false;
     }
-    this.spin.add(this.bulwark, new THREE.Mesh(kit.body, kit.bodyMaterial), this.faceMesh,
+    this.spin.add(this.bulwark, new THREE.Mesh(kit.body, kit.bodyMaterial), this.faceMesh, this.numbers,
       this.veil, this.smokeRing, this.sheen, this.wind, this.skull, this.poison, this.ice, this.rebornShell, this.shell);
     this.tilt.add(this.spin);
     this.tilt.rotation.x = -kit.lean;
@@ -422,15 +477,24 @@ export class CardObject {
     if (!tex.mapleGrain()) void tex.mapleReady.then(() => this.redraw());
   }
 
-  /** Redraws the face when its data or its artwork changed. */
+  /** Swaps in the face picture when what it shows changed, and rewrites changed numbers. */
   private redraw() {
-    if (!this.face || this.disposed) return;
-    const art = artFor(this.face.seed);
-    const key = JSON.stringify(this.face) + (art ? '+art' : '') + (tex.mapleGrain() ? '+grain' : '');
-    if (key === this.faceKey) return;
-    this.faceKey = key;
-    drawFace(this.canvas, this.face, art ?? undefined);
-    this.texture.needsUpdate = true;
+    const face = this.face;
+    if (!face || this.disposed) return;
+    const art = artFor(face.seed);
+    const { atk: _atk, hp: _hp, price: _price, costsHealth: _costsHealth, ...shown } = face;
+    const key = JSON.stringify(shown) + (art ? '+art' : '') + (tex.mapleGrain() ? '+grain' : '');
+    if (key !== this.picture?.key) {
+      const picture = this.kit.faces.acquire(key, canvas => drawFace(canvas, face, art ?? undefined));
+      if (this.picture) this.kit.faces.release(this.picture);
+      this.picture = picture;
+      this.faceMesh.material.map = picture.texture;
+    }
+    const numbers = numbersKey(face);
+    if (numbers !== this.numbersKey) {
+      this.numbersKey = numbers;
+      this.kit.numbers.update(this.numbers, face);
+    }
   }
 
   /** Layout target. A new card starts above its slot and grows into place. */
@@ -505,7 +569,9 @@ export class CardObject {
     // A positive pitch tips the top of the card away from the camera.
     this.tilt.rotation.x = -this.kit.lean - pitch;
     this.flashLeft = Math.max(0, this.flashLeft - dt);
-    (this.faceMesh.material as THREE.MeshStandardMaterial).emissive.setScalar(this.flashLeft > 0 ? 0.35 : 0);
+    const flash = this.flashLeft > 0 ? 0.35 : 0;
+    this.faceMesh.material.emissive.setScalar(flash);
+    this.numbers.material.emissive.setScalar(flash);
 
     const lift = Math.max(0, c.pos.y - this.kit.centerY);
     // The key light sits behind the camera, so the shadow falls toward the viewer.
@@ -538,8 +604,11 @@ export class CardObject {
   }
 
   dispose() {
-    this.texture.dispose();
-    (this.faceMesh.material as THREE.Material).dispose();
+    if (this.picture) this.kit.faces.release(this.picture);
+    this.picture = undefined;
+    this.faceMesh.material.dispose();
+    this.numbers.geometry.dispose();
+    this.numbers.material.dispose();
     (this.shadow.material as THREE.Material).dispose();
     this.ice.material.dispose();
     this.disposed = true;
@@ -713,27 +782,7 @@ function drawFace(canvas: HTMLCanvasElement, f: Face, art?: HTMLImageElement) {
     g.stroke();
   }
 
-  // Numbers stand on their own: a bright fill inside a heavy dark outline and shadow.
-  const number = (text: string, x: number, y: number, align: CanvasTextAlign, size: number, color: string) => {
-    g.save();
-    g.font = `bold ${size * u}px Georgia,serif`;
-    g.textAlign = align;
-    g.lineJoin = 'round';
-    g.shadowColor = 'rgba(0,0,0,.7)';
-    g.shadowBlur = 6 * u;
-    g.shadowOffsetY = 4 * u;
-    g.lineWidth = 11 * u;
-    g.strokeStyle = '#1a0d06';
-    g.strokeText(text, x, y);
-    g.shadowColor = 'transparent';
-    g.fillStyle = color;
-    g.fillText(text, x, y);
-    g.restore();
-  };
-  const low = h - 30 * u;
-  if (f.atk !== undefined) number(String(f.atk), 18 * u, low, 'left', 60, '#ffd66b');
-  if (f.hp !== undefined) number(String(f.hp), w - 18 * u, low, 'right', 60, '#ff7a6b');
-  if (f.price !== undefined) number((f.costsHealth ? '♥' : '') + (f.price ?? '–'), w - 16 * u, 30 * u, 'right', 48, '#ffe9a8');
+  // The numbers are not part of the picture: see numbers.ts.
   if (f.tier) drawStars(g, f.tier, 9 * u, 9 * u, 26 * u);
 }
 
