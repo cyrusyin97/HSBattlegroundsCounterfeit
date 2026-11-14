@@ -34,6 +34,7 @@ export const zhCN = {
   status: {
     loading: '酒馆准备中…',
     offline: '无法连接游戏服务，请启动后端并点击重开',
+    full: '服务器目前没有空桌，请过几分钟再点击重开',
     resolving: '正在结算…',
     disconnected: '连接中断，请检查服务后重试',
     rejected: '操作未生效，已同步棋盘',

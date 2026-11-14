@@ -12,6 +12,11 @@ WorkingDirectory=/opt/battlegrounds
 Environment=BG_SAVE_PATH=/var/lib/battlegrounds/games.sqlite3
 # The built frontend, served by the same process.
 Environment=BG_STATIC_DIR=/opt/battlegrounds/frontend/dist
+# Limits for a server that strangers can reach (deploy/Caddyfile, 方式 C); see docs/DEPLOY.md.
+# New games are refused while this many are in memory; 40 leaves room on a 512 MB droplet.
+Environment=BG_MAX_GAMES=40
+# New games one visitor's address may start per hour. Direct connections (SSH tunnel) are exempt.
+Environment=BG_CREATE_PER_HOUR=12
 # Listens on the droplet itself only; reach it through an SSH tunnel or deploy/Caddyfile.
 ExecStart=/opt/battlegrounds/.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 Restart=always

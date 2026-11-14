@@ -60,6 +60,10 @@ class SaveStore:
         version, state, applied, over = row
         return Save(version, zlib.decompress(state).decode(), json.loads(applied), bool(over))
 
+    def delete(self, game_id: str):
+        with self._lock:
+            self._db.execute("DELETE FROM games WHERE id = ?", (game_id,))
+
     def delete_older(self, finished_before: float, idle_before: float) -> int:
         """Delete finished games last saved before one time and any game idle since another."""
         with self._lock:

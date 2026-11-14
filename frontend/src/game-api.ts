@@ -137,8 +137,12 @@ async function timed(url: string, init?: RequestInit) {
   return { response, body };
 }
 
+/** A public server refused a new game: it is full (503) or this visitor started too many (429). */
+export class ServerBusy extends Error {}
+
 export async function createGame(scenario?: string): Promise<GameSnapshot> {
   const { response, body } = await timed('/api/games' + (scenario === undefined ? '' : '?scenario=' + encodeURIComponent(scenario)), { method: 'POST' });
+  if (response.status === 503 || response.status === 429) throw new ServerBusy('Create game refused: ' + response.status);
   if (!response.ok) throw new Error('Create game failed: ' + response.status);
   return body;
 }

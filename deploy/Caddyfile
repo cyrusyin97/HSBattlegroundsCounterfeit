@@ -1,10 +1,30 @@
-# Optional: open the game in a browser at a domain, with HTTPS and a password, instead of an
-# SSH tunnel. See docs/DEPLOY.md, 方式 B. Replace the domain and the password hash.
-game.example.com {
-	# Generate the hash on the droplet with: caddy hash-password
-	basic_auth {
-		player $2a$14$REPLACE_WITH_THE_OUTPUT_OF_caddy_hash-password
-	}
+# Optional: open the game in a browser at a domain, with HTTPS, instead of an SSH tunnel.
+# See docs/DEPLOY.md, 方式 B and 方式 C. Copy this file to /etc/caddy/Caddyfile on the droplet.
+
+# 方式 C: the public demo, without a password, embedded in the portfolio at cyrusyin.dev. It never
+# serves the licensed card art, even though the files are on the droplet; cards show their
+# fallback face. BG_MAX_GAMES and BG_CREATE_PER_HOUR in battlegrounds.service limit strangers.
+bg.cyrusyin.dev {
+	@art path /assets/official/*
+	respond @art 404
+	# The browser client uses HTTP only; the socket endpoint stays private.
+	@socket path /ws/*
+	respond @socket 404
+	# Only these sites may show the game in a frame. The localhost entries are for developing the
+	# portfolio (its dev server runs on port 5180) and can be removed.
+	header Content-Security-Policy "frame-ancestors 'self' https://cyrusyin.dev https://www.cyrusyin.dev http://localhost:5180 http://127.0.0.1:5180"
+	header X-Robots-Tag "noindex"
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8000
 }
+
+# 方式 B: a private site behind a password, with the card art. To use it, remove the leading #
+# from the lines below, pick a domain with its own DNS record, and paste the output of
+# `caddy hash-password` (run on the droplet) after `player`.
+# game.cyrusyin.dev {
+# 	basic_auth {
+# 		player $2a$14$REPLACE_WITH_THE_OUTPUT_OF_caddy_hash-password
+# 	}
+# 	encode zstd gzip
+# 	reverse_proxy 127.0.0.1:8000
+# }

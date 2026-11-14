@@ -36,6 +36,7 @@ export const en: Messages = {
   status: {
     loading: 'Setting up the tavern…',
     offline: 'Cannot reach the game service. Start the backend, then press Restart.',
+    full: 'The server has no free table right now. Press Restart in a few minutes.',
     resolving: 'Resolving…',
     disconnected: 'Connection lost. Check the service and try again.',
     rejected: 'That action did not apply; the board is back in sync.',

@@ -70,10 +70,10 @@ ssh -N -L 8000:127.0.0.1:8000 root@203.0.113.7
 
 如果你想直接在任何瀏覽器（包括手機）打開，不想每次開 SSH 通道：
 
-1. 準備一個網域，在 DNS 加一筆 A 記錄指向 droplet IP，例如 `game.example.com`。
+1. 在 DNS 加一筆 A 記錄指向 droplet IP，例如 `game.cyrusyin.dev`。
 2. 依照 Caddy 官方文件在 droplet 安裝 Caddy：https://caddyserver.com/docs/install#debian-ubuntu-raspbian
 3. 在 droplet 上執行 `caddy hash-password`，輸入你要的密碼，複製輸出的雜湊值。
-4. 編輯 `deploy/Caddyfile`：把網域換成你的，把雜湊值貼到 `player` 後面。`player` 是登入用的帳號名稱，可以改。
+4. 編輯 `deploy/Caddyfile`：方式 B 那一段預設是註解掉的，刪掉每行開頭的 `#`，確認網域，把雜湊值貼到 `player` 後面。`player` 是登入用的帳號名稱，可以改。
 5. 複製到 droplet 並重新載入：
    ```bash
    scp deploy/Caddyfile root@203.0.113.7:/etc/caddy/Caddyfile
@@ -85,7 +85,48 @@ ssh -N -L 8000:127.0.0.1:8000 root@203.0.113.7
 
 Caddy 會自動申請 HTTPS 憑證，瀏覽器打開網域時會要求輸入帳號密碼。
 
-**注意：** 方式 B 會讓這個網址出現在網路上，只是有密碼保護。建置裡含有官方卡圖，所以帳號密碼不要分享給別人。如果以後要公開給其他人玩，前端要改成不含官方卡圖的建置。
+**注意：** 方式 B 會讓這個網址出現在網路上，只是有密碼保護。建置裡含有官方卡圖，所以帳號密碼不要分享給別人。要公開給其他人玩，用下面的方式 C。
+
+### 方式 C：公開試玩站（沒有密碼，可內嵌到其他網站）
+
+給不認識的人試玩用，例如內嵌在作品集網站裡。和方式 B 可以同時存在，各用一個網域，連到同一個遊戲程序。
+
+`deploy/Caddyfile` 裡的 `bg.cyrusyin.dev` 這一段做了這些事：
+
+| 設定 | 作用 |
+|---|---|
+| `/assets/official/*` 回 404 | 不提供官方卡圖。檔案仍在 droplet 上，但這個網域拿不到，卡面顯示備用圖 |
+| `/ws/*` 回 404 | 瀏覽器用戶端只用 HTTP，WebSocket 端點不對外 |
+| `Content-Security-Policy: frame-ancestors` | 只有列出的網站可以用 iframe 內嵌這個遊戲 |
+| `X-Robots-Tag: noindex` | 請搜尋引擎不要收錄 |
+
+設定步驟：
+
+1. 在 DNS 加一筆 A 記錄：`bg.cyrusyin.dev` 指向 droplet IP。DNS 放在 Cloudflare 的話，這筆記錄要設成「DNS only」（灰色雲朵）：開了代理，伺服器看到的訪客 IP 都是 Cloudflare 的，每 IP 的限制會失準。
+2. `deploy/Caddyfile` 已經設定好網域和可內嵌的網站（`https://cyrusyin.dev`）。換網域時，這兩處都要改。
+3. 確認 `deploy/battlegrounds.service` 裡有 `BG_MAX_GAMES` 和 `BG_CREATE_PER_HOUR`（見下面的「公開時的限制」），並且已經部署過。
+4. 安裝 Caddy、複製設定、開放 80 和 443 埠，做法和方式 B 的第 2、5、6 步相同。
+5. 內嵌的網站用 `https://bg.cyrusyin.dev/?noart` 當 iframe 網址。`?noart` 讓前端不去要求卡圖，省掉一批 404 請求。
+
+**droplet 沒有 swap 的話，先加上。** 記憶體用完時，Linux 會直接殺掉遊戲程序。systemd 會重啟它，對局也會從存檔接回來，但所有人會斷線幾秒。加 1 GB swap（在 droplet 上執行一次）：
+
+```bash
+fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
+#### 公開時的限制
+
+沒有密碼時，任何人都能開新局，所以伺服器要自己設上限。兩個限制都用環境變數設定，未設定時不限制。
+
+| 情況 | 伺服器回應 | 玩家看到 |
+|---|---|---|
+| 記憶體裡的對局數達到 `BG_MAX_GAMES` 時開新局 | `503 server_full` | 「伺服器目前沒有空桌」 |
+| 同一個 IP 一小時內開新局超過 `BG_CREATE_PER_HOUR` 次 | `429 too_many_games` | 同上 |
+
+- 上限只擋**新局**。已經在玩的人不受影響；閒置後被移出記憶體的對局，回來時照樣能從存檔載入。
+- 閒置的對局要等 `BG_MEMORY_IDLE_MINUTES`（預設 30 分鐘）才會讓出位置。訪客多的話可以調短。
+- 經過 SSH 通道的連線（方式 A）不計入每 IP 的次數限制，但計入對局數上限。
+- 每 IP 的限制靠 Caddy 傳來的 `X-Forwarded-For` 辨識訪客。uvicorn 只信任來自本機的這個標頭，所以遊戲程序要維持只監聽 `127.0.0.1`。
 
 ## 更新版本
 
@@ -185,7 +226,7 @@ deploy/push.sh root@203.0.113.7
 
 | 情況 | 處理方式 |
 |---|---|
-| 一局閒置 30 分鐘 | 從記憶體移除，存檔保留。下次點擊時自動從存檔載入 |
+| 一局閒置 30 分鐘（`BG_MEMORY_IDLE_MINUTES`） | 從記憶體移除，存檔保留。下次點擊時自動從存檔載入 |
 | 一局已結束（遊戲結束，或你被淘汰） | 最後一個動作 1 小時後刪除存檔 |
 | 一局未結束，但很久沒動 | 7 天後刪除。可用環境變數 `BG_IDLE_DAYS` 調整 |
 
@@ -207,6 +248,9 @@ deploy/push.sh root@203.0.113.7
 | `BG_SAVE_PATH` | SQLite 存檔路徑 | 不存檔，對局只在記憶體裡，重啟就沒了 |
 | `BG_STATIC_DIR` | 要一起提供的前端目錄 | 只提供 API（開發時由 Vite 提供前端） |
 | `BG_IDLE_DAYS` | 未結束對局保留天數 | 7 |
+| `BG_MEMORY_IDLE_MINUTES` | 對局閒置多久後移出記憶體（有存檔時） | 30 |
+| `BG_MAX_GAMES` | 記憶體裡的對局數上限，達到後拒絕新局 | 不限制 |
+| `BG_CREATE_PER_HOUR` | 同一個 IP 每小時可開的新局數 | 不限制 |
 
 ## 重新編譯 Linux 版引擎
 

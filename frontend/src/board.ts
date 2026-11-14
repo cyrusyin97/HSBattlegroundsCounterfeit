@@ -1,5 +1,5 @@
 import './board.css';
-import { createGame, readGame, type Action, type Card, type GameSnapshot } from './game-api';
+import { createGame, readGame, ServerBusy, type Action, type Card, type GameSnapshot } from './game-api';
 import { withCardImage } from './demo-art';
 import { badge, boardScale, byId, localPoint } from './pieces';
 import { playCombat } from './combat';
@@ -293,7 +293,7 @@ async function start(resume = false) {
       render();
     }
   }
-  catch {message(t().status.offline);}
+  catch (error) {message(error instanceof ServerBusy ? t().status.full : t().status.offline);}
   finally {lock(false);}
 }
 /** The combat started on the server and its schedule has not ended yet. */

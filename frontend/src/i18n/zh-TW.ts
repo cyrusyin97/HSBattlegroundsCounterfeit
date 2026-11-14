@@ -34,6 +34,7 @@ export const zhTW: Messages = {
   status: {
     loading: '酒館準備中…',
     offline: '無法連線到遊戲服務，請啟動後端並點擊重開',
+    full: '伺服器目前沒有空桌，請過幾分鐘再點擊重開',
     resolving: '正在結算…',
     disconnected: '連線中斷，請檢查服務後重試',
     rejected: '操作未生效，已同步棋盤',

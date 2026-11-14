@@ -9,11 +9,12 @@ import logging
 import os
 import secrets
 import time
+from collections import deque
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from threading import Lock
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -28,16 +29,43 @@ from .store import SaveStore
 logger = logging.getLogger(__name__)
 
 SWEEP_SECONDS = 300
-MEMORY_IDLE_SECONDS = 30 * 60
+MEMORY_IDLE_SECONDS = float(os.environ.get("BG_MEMORY_IDLE_MINUTES", "30")) * 60
 """With saves, a game idle this long leaves memory and reloads from its save on the next request."""
 FINISHED_KEEP_SECONDS = 60 * 60
 """A finished game is deleted this long after its last action."""
 IDLE_KEEP_SECONDS = float(os.environ.get("BG_IDLE_DAYS", "7")) * 86400
 """An unfinished game is deleted after this long without an action."""
+MAX_GAMES = int(os.environ.get("BG_MAX_GAMES", "0"))
+"""New games are refused while this many are in memory; 0 means no limit. A game loaded again
+from its save is never refused, so a player already in a game is not locked out of it."""
+CREATE_LIMIT = int(os.environ.get("BG_CREATE_PER_HOUR", "0"))
+"""New games one address may start in CREATE_WINDOW_SECONDS; 0 means no limit."""
+CREATE_WINDOW_SECONDS = 3600
+LOOPBACK = {"127.0.0.1", "::1"}
+"""A request that reaches the server directly, such as through an SSH tunnel, is the owner's and
+is not rate limited. Behind Caddy, uvicorn reports the visitor's address from X-Forwarded-For."""
 
 store = SaveStore(os.environ["BG_SAVE_PATH"]) if os.environ.get("BG_SAVE_PATH") else None
 sessions: dict[str, GameSession] = {}
 sessions_lock = Lock()
+created: dict[str, deque[float]] = {}
+"""When each address started its recent games."""
+created_lock = Lock()
+
+
+def allow_create(address: str, now: float | None = None) -> float:
+    """Record a new game for this address and return 0, or the seconds until it may start one."""
+    if not CREATE_LIMIT or address in LOOPBACK:
+        return 0
+    now = time.time() if now is None else now
+    with created_lock:
+        times = created.setdefault(address, deque())
+        while times and times[0] <= now - CREATE_WINDOW_SECONDS:
+            times.popleft()
+        if len(times) >= CREATE_LIMIT:
+            return times[0] + CREATE_WINDOW_SECONDS - now
+        times.append(now)
+        return 0
 
 
 def find_session(game_id: str) -> GameSession | None:
@@ -90,6 +118,9 @@ def sweep(now: float | None = None):
                     sessions.pop(game_id, None)
             finally:
                 session.lock.release()
+    with created_lock:
+        for address in [a for a, times in created.items() if times[-1] <= now - CREATE_WINDOW_SECONDS]:
+            del created[address]
     if store is not None:
         deleted = store.delete_older(now - FINISHED_KEEP_SECONDS, now - IDLE_KEEP_SECONDS)
         if deleted:
@@ -153,12 +184,24 @@ def list_scenarios():
 
 
 @app.post("/api/games", status_code=201)
-def create_game(scenario: str | None = None):
+def create_game(request: Request, scenario: str | None = None):
     if scenario is not None and scenario not in SCENARIOS:
         raise HTTPException(404, "unknown_scenario")
+    # Checked before the rate limit, so a refused game does not count against the visitor.
+    if MAX_GAMES and len(sessions) >= MAX_GAMES:
+        raise HTTPException(503, "server_full", headers={"Retry-After": "60"})
+    wait = allow_create(request.client.host if request.client else "")
+    if wait:
+        raise HTTPException(429, "too_many_games", headers={"Retry-After": str(int(wait) + 1)})
     engine = make_scenario(scenario) if scenario is not None else taverngym.Game(seed=secrets.randbits(63))
     session = GameSession(engine, store=store)
-    sessions[session.id] = session
+    with sessions_lock:
+        # Requests that passed the check together may not all fit.
+        if MAX_GAMES and len(sessions) >= MAX_GAMES:
+            if store is not None:
+                store.delete(session.id)
+            raise HTTPException(503, "server_full", headers={"Retry-After": "60"})
+        sessions[session.id] = session
     return stamped(session.read())
 
 
