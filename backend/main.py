@@ -142,6 +142,11 @@ def server_timing(timings: dict[str, float], started: float) -> dict[str, str]:
     return {"Server-Timing": ", ".join(parts)}
 
 
+def stamped(body: dict) -> dict:
+    """A game response with the server's clock, which the client uses to place combat playback."""
+    return {**body, "server_now": round(time.time() * 1000)}
+
+
 @app.get("/api/scenarios")
 def list_scenarios():
     return [{"id": key, "instructions": value} for key, value in SCENARIOS.items()]
@@ -154,18 +159,19 @@ def create_game(scenario: str | None = None):
     engine = make_scenario(scenario) if scenario is not None else taverngym.Game(seed=secrets.randbits(63))
     session = GameSession(engine, store=store)
     sessions[session.id] = session
-    return session.read()
+    return stamped(session.read())
 
 
 @app.get("/api/games/{game_id}")
 def read_game(game_id: str):
-    return get_session(game_id).read()
+    return stamped(get_session(game_id).read())
 
 
 @app.post("/api/games/{game_id}/actions")
 def submit_action(game_id: str, request: ActionRequest):
     started, timings = time.perf_counter(), {}
     status, result = submit(game_id, request, timings)
+    result = stamped(result)
     # Encoding the JSON body is part of the response cost, so it is timed too.
     encoding = time.perf_counter()
     body = JSONResponse(result, status_code=status).body
@@ -182,7 +188,7 @@ async def game_socket(ws: WebSocket, game_id: str):
         return
     await ws.accept()
     try:
-        await ws.send_json(await run_in_threadpool(session.read))
+        await ws.send_json(stamped(await run_in_threadpool(session.read)))
         while True:
             try:
                 request = ActionRequest.model_validate(await ws.receive_json())
@@ -193,7 +199,7 @@ async def game_socket(ws: WebSocket, game_id: str):
                 _, result = await run_in_threadpool(submit, game_id, request)
             except HTTPException as error:
                 result = {"ok": False, "error": {"code": error.detail}}
-            await ws.send_json(result)
+            await ws.send_json(stamped(result))
     except WebSocketDisconnect:
         return
 

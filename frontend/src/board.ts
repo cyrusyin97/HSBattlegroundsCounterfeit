@@ -5,6 +5,8 @@ import { badge, boardScale, byId, localPoint } from './pieces';
 import { playCombat } from './combat';
 import { animateHeroVitals, renderHeroPanel } from './hero-effects';
 import { matchAction } from './core/intents';
+import { combatSchedule, combatStart, startingHeroes } from './core/combat-timeline';
+import { combatScript } from './core/combat-script';
 import { chooseOneModes, describe } from './core/describe';
 import { ranked } from './core/roster';
 import { warbandType } from './core/warband';
@@ -98,7 +100,7 @@ async function commit(action: Action) {
   message(t().status.resolving);
   try {
     const { snapshot: result, note, combat, hero } = await execute(before, action);
-    if (combat) await playCombat(combat, before, script => view.playCombat(script));
+    if (combat) await playCombat(combat, before, view, combatStart(result, combat));
     snapshot = result;
     render(note ? undefined : { action, before });
     if (hero) await animateHeroVitals(byId('hero'), hero, result.state.me);
@@ -285,9 +287,20 @@ async function start(resume = false) {
     const resumed = saved ? await readGame(saved).catch(() => undefined) : undefined;
     snapshot = resumed ?? await createGame(scene.value==='random'?undefined:scene.value);
     remember(snapshot.game_id); spell=undefined; render();
+    // A reload during a combat picks the combat up where the server's clock says it is.
+    if (resumed?.combat && combatRunning(resumed, resumed.combat)) {
+      await playCombat(resumed.combat, resumed, view, combatStart(resumed, resumed.combat));
+      render();
+    }
   }
   catch {message(t().status.offline);}
   finally {lock(false);}
+}
+/** The combat started on the server and its schedule has not ended yet. */
+function combatRunning(s: GameSnapshot, combat: NonNullable<GameSnapshot['combat']>) {
+  if (combat.started_at === undefined) return false;
+  const schedule = combatSchedule(combatScript(combat, s.state.seat), combat, startingHeroes(combat, s));
+  return performance.now() - combatStart(s, combat) < schedule.duration;
 }
 function resize(){const scale=boardScale();table.style.setProperty('--scale',String(scale));view.resize(scale);}
 

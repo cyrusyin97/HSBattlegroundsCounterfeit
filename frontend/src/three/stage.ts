@@ -3,6 +3,14 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Rect } from './layout';
+import { JUMP_MS } from '../core/combat-timing';
+
+/**
+ * Called once per drawn frame. `dt` is the frame step in seconds, capped at 0.05 so springs
+ * stay stable; `now` is the frame's `performance.now()`; `jumped` marks a frame that came
+ * long after the previous one, such as the first frame after a background tab.
+ */
+export type FrameCallback = (dt: number, now: number, jumped: boolean) => void;
 
 export const BOARD_W = 1440, BOARD_H = 810;
 const BACKDROP = 0x1a0f0b;
@@ -12,7 +20,8 @@ export class Stage {
   readonly camera = new THREE.PerspectiveCamera(30, BOARD_W / BOARD_H, 0.1, 100);
   readonly renderer: THREE.WebGLRenderer;
   private readonly raycaster = new THREE.Raycaster();
-  private readonly callbacks: ((dt: number) => void)[] = [];
+  private readonly callbacks: FrameCallback[] = [];
+  private readonly early = new Set<(now: number) => void>();
   /** CPU time of the last frame's updates and draw, in milliseconds. */
   frameMs = 0;
 
@@ -32,10 +41,12 @@ export class Stage {
     this.addTable();
     let last = performance.now();
     this.renderer.setAnimationLoop(now => {
+      const jumped = now - last > JUMP_MS;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const start = performance.now();
-      for (const callback of this.callbacks) callback(dt);
+      for (const callback of [...this.early]) callback(now);
+      for (const callback of this.callbacks) callback(dt, now, jumped);
       this.renderer.render(this.scene, this.camera);
       this.frameMs = performance.now() - start;
     });
@@ -47,7 +58,13 @@ export class Stage {
     this.renderer.setSize(BOARD_W, BOARD_H, false);
   }
 
-  onFrame(callback: (dt: number) => void) { this.callbacks.push(callback); }
+  onFrame(callback: FrameCallback) { this.callbacks.push(callback); }
+
+  /** Runs `callback` before the other frame callbacks, so what it sets is drawn in the same frame. */
+  beforeFrame(callback: (now: number) => void): () => void {
+    this.early.add(callback);
+    return () => this.early.delete(callback);
+  }
 
   get maxAnisotropy() { return this.renderer.capabilities.getMaxAnisotropy(); }
 

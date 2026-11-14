@@ -68,6 +68,10 @@ export interface Combat {
   damage: number;
   heroes_before?: [HeroState | null, HeroState | null];
   heroes_after?: [HeroState | null, HeroState | null];
+  /** Hero values the player saw just before the combat, by side; null for a ghost. */
+  heroes_start?: [HeroState | null, HeroState | null];
+  /** When the combat started, on the server's clock (epoch milliseconds). */
+  started_at?: number;
   truncated: boolean;
   frames: { boards: [Minion[], Minion[]]; attacks: [number, number][]; impacts?: AttackImpact[] }[];
 }
@@ -76,6 +80,10 @@ export interface GameSnapshot {
   version: number;
   legal_actions: Action[];
   combat: Combat | null;
+  /** The server's clock when it sent this response (epoch milliseconds). */
+  server_now?: number;
+  /** Set by this client on arrival: `performance.now()` then, and the request's round trip. */
+  client?: { received: number; rtt: number };
   state: {
     seat: number;
     phase: 'hero_select' | 'recruit' | 'game_over';
@@ -119,16 +127,26 @@ export type ActionResult = GameSnapshot & { request_id: string } & (
   | { ok: false; error: { code: 'illegal_action' | 'stale_version' | 'duplicate_request' | 'engine_error' | 'save_error'; applied_version?: number } }
 );
 
+/** Fetches JSON and records when it arrived, so server times can be placed on this page's clock. */
+async function timed(url: string, init?: RequestInit) {
+  const sent = performance.now();
+  const response = await fetch(url, init);
+  const received = performance.now();
+  const body = await response.json();
+  if (body && typeof body === 'object') body.client = { received, rtt: received - sent };
+  return { response, body };
+}
+
 export async function createGame(scenario?: string): Promise<GameSnapshot> {
-  const response = await fetch('/api/games' + (scenario === undefined ? '' : '?scenario=' + encodeURIComponent(scenario)), { method: 'POST' });
+  const { response, body } = await timed('/api/games' + (scenario === undefined ? '' : '?scenario=' + encodeURIComponent(scenario)), { method: 'POST' });
   if (!response.ok) throw new Error('Create game failed: ' + response.status);
-  return response.json();
+  return body;
 }
 
 export async function readGame(gameId: string): Promise<GameSnapshot> {
-  const response = await fetch('/api/games/' + encodeURIComponent(gameId));
+  const { response, body } = await timed('/api/games/' + encodeURIComponent(gameId));
   if (!response.ok) throw new Error('Read game failed: ' + response.status);
-  return response.json();
+  return body;
 }
 
 /** Reuse the returned request (including its ID and version) on a network retry. */
@@ -137,10 +155,9 @@ export function makeRequest(snapshot: GameSnapshot, action: Action): ActionReque
 }
 
 export async function submitAction(gameId: string, request: ActionRequest): Promise<ActionResult> {
-  const response = await fetch('/api/games/' + encodeURIComponent(gameId) + '/actions', {
+  const { response, body: result } = await timed('/api/games/' + encodeURIComponent(gameId) + '/actions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request),
   });
-  const result = await response.json();
   if (!response.ok && result.ok !== false) throw new Error('Action request failed: ' + response.status);
   return result;
 }

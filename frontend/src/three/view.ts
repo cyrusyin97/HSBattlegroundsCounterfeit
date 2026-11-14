@@ -12,7 +12,7 @@ import { diff, placements, transfers, type Key, type Placement } from './reconci
 import { CardKit, CardObject, faceOf, footprint } from './entities';
 import { Clock } from './motion';
 import { Labels, Particles } from './fx';
-import { playCombat, type CombatTable } from './combat';
+import { stageCombat, type CombatTable } from './combat';
 import * as effects from './effects';
 import { showStats } from './stats';
 
@@ -69,14 +69,17 @@ export function createThreeView(host: ViewHost): CardView {
     root.remove(obj.root, obj.shadow);
     obj.dispose();
   };
-  stage.onFrame(dt => {
+  stage.onFrame((dt, _now, jumped) => {
     for (const [key, obj] of cards) {
+      // After a gap in frames (a background tab) cards show where they belong now.
+      if (jumped) obj.snap();
       obj.step(dt);
       if (!obj.gone) continue;
       discard(obj);
       cards.delete(key);
     }
     for (const obj of loose) {
+      if (jumped) obj.snap();
       obj.step(dt);
       if (!obj.gone) continue;
       discard(obj);
@@ -120,8 +123,9 @@ export function createThreeView(host: ViewHost): CardView {
   const effectTable: effects.EffectTable = { stage, kit, clock, particles };
   const shopObjects = () => zoneCards('shop').flatMap(p => cards.get(p.key) ?? []);
   const combatTable: CombatTable = {
-    kit, clock, particles, labels, cards, obtain,
+    kit, particles, labels, cards, obtain,
     arrange: (zone, list) => arrange(zone, list),
+    snap: () => { for (const obj of cards.values()) obj.snap(); },
   };
 
   function pick(x: number, y: number) {
@@ -300,18 +304,20 @@ export function createThreeView(host: ViewHost): CardView {
       setHover(undefined);
       layout();
     },
-    async playCombat(script) {
+    stageCombat(script, schedule, timeline) {
       setHover(undefined);
       // The hand moves beside the friendly hero and stays readable; the shop clears for the opposing warband.
       arrange('hand', zoneCards('hand'), undefined, COMBAT_HAND);
       for (const p of zoneCards('shop')) cards.get(p.key)?.remove();
       placed = new Map();
       fighting = true;
-      try { await playCombat(combatTable, script); } finally {
+      stageCombat(combatTable, script, schedule, timeline);
+      timeline.onDispose(() => {
         fighting = false;
         setHover(undefined);
-      }
+      });
     },
+    onFrame: frame => stage.beforeFrame(frame),
     async shopEffect(kind, before, after) {
       if (kind === 'refresh') {
         const { departing, arriving } = refreshed ?? { departing: [], arriving: [] };

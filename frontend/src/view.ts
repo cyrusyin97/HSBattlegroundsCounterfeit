@@ -3,6 +3,8 @@
 // the shop, warband and hand, and turns gestures on them into commits.
 import type { Action, Card, GameSnapshot } from './game-api';
 import type { CombatScript } from './core/combat-script';
+import type { CombatSchedule } from './core/combat-timeline';
+import type { Frames, Timeline } from './core/timeline';
 
 export type ShopAction = 'refresh' | 'freeze' | 'upgrade';
 export function isShopAction(kind: Action['kind']): kind is ShopAction {
@@ -24,8 +26,13 @@ export interface Transition { action: Action; before: GameSnapshot }
 
 export interface CardView {
   render(transition?: Transition): void;
-  /** Minion combat on the table. Hero panels and the result text belong to the controller. */
-  playCombat(script: CombatScript): Promise<void>;
+  /**
+   * Puts the minion combat on `timeline`; the controller plays it. Hero panels and the
+   * result text belong to the controller. Disposing the timeline ends the combat view.
+   */
+  stageCombat(script: CombatScript, schedule: CombatSchedule, timeline: Timeline): void;
+  /** Frames of the renderer, before it draws: the clock that combat playback follows. */
+  onFrame: Frames;
   shopEffect(kind: ShopAction, before: GameSnapshot, after: GameSnapshot): Promise<void>;
   /**
    * Board coordinate where the targeting arrow starts: the card that opened the choice

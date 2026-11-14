@@ -45,6 +45,16 @@ def player_snapshot(game, game_id, version, with_combat=False):
              "legal_actions": list(legal.values()), "combat": combat}, legal)
 
 
+def hero_sides(state, combat):
+    """The heroes of a combat's two sides as `state` shows them, or None for a ghost."""
+    def hero(seat):
+        if seat is None:
+            return None
+        player = state["me"] if seat == state["seat"] else next((p for p in state["opponents"] if p["id"] == seat), None)
+        return player and {key: player[key] for key in ("hero", "health", "armor", "tier")}
+    return [hero(combat["a"]), hero(combat["b"])]
+
+
 def finished(game):
     """The game is over for the player: it ended, or seat 0 was eliminated and only bots remain."""
     return bool(game.is_over() or game.placements()[0])
@@ -123,6 +133,11 @@ class GameSession:
                 # A combat ends the turn, so the turn advances, or ends the player's game.
                 fought = candidate.turn != self.game.turn or finished(candidate)
                 snapshot, legal = player_snapshot(candidate, self.id, version, with_combat=fought)
+                if snapshot["combat"] is not None:
+                    # The client places playback on this clock, and shows the heroes as they
+                    # were before the action, also after a reload in the middle of the combat.
+                    snapshot["combat"]["started_at"] = round(time.time() * 1000)
+                    snapshot["combat"]["heroes_start"] = hero_sides(self.snapshot["state"], snapshot["combat"])
                 timings["snapshot"] = (clock() - started) * 1000
             except Exception:
                 logger.exception("Unable to finish request %s in game %s", request.request_id, self.id)

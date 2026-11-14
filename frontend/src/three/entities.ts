@@ -472,6 +472,16 @@ export class CardObject {
       this.faceMesh.localToWorld(new THREE.Vector3(u * this.kit.width / 2, v * this.kit.height / 2, 0)));
   }
 
+  /** Jumps to the goal pose, as after a gap in frames; a removed card is gone at once. */
+  snap() {
+    const goal = this.goal();
+    this.current.pos.copy(goal.pos);
+    this.current.roll = goal.roll;
+    this.current.scale = goal.scale;
+    this.flashLeft = 0;
+    if (this.removing) this.gone = true;
+  }
+
   step(dt: number) {
     const goal = this.goal();
     const k = reducedMotion.matches ? 1 : 1 - Math.exp(-dt * (this.held ? 28 : 12));

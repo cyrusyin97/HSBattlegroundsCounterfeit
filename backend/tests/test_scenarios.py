@@ -42,6 +42,7 @@ def buy(snapshot, card):
 def test_scenario_restarts_at_identical_player_decision(start, key):
     first, second = start(key), start(key)
     assert first.pop("game_id") != second.pop("game_id")
+    first.pop("server_now"), second.pop("server_now")
     assert first == second
     assert first["version"] == 0 and first["state"]["phase"] == "recruit"
 
@@ -139,6 +140,24 @@ def test_hero_damage_replay_preserves_pre_damage_state(start):
     # Only the response that finished the combat carries it; a reload right after still gets it.
     assert client.get(f"/api/games/{resolved['game_id']}").json()["combat"] == replay
     assert step(resolved, "freeze")["combat"] is None
+
+
+def test_combat_carries_its_start_time_and_starting_heroes(start):
+    before = start("late")
+    clock = before["server_now"]
+    resolved = step(before, "end_turn")
+    combat = resolved["combat"]
+    # The client places playback on the server's clock, so both times come from it.
+    assert clock <= combat["started_at"] <= resolved["server_now"]
+    me = before["state"]["me"]
+    friendly = 0 if combat["a"] == before["state"]["seat"] else 1
+    assert combat["heroes_start"][friendly] == {k: me[k] for k in ("hero", "health", "armor", "tier")}
+    opponent = combat["b"] if friendly == 0 else combat["a"]
+    if opponent is not None:
+        seen = next(p for p in before["state"]["opponents"] if p["id"] == opponent)
+        assert combat["heroes_start"][1 - friendly]["health"] == seen["health"]
+    # A reload right after the combat gets the same start time.
+    assert client.get(f"/api/games/{resolved['game_id']}").json()["combat"]["started_at"] == combat["started_at"]
 
 
 def test_mechanics(start):

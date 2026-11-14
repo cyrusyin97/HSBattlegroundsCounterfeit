@@ -34,7 +34,11 @@ export class Particles {
     this.mesh.frustumCulled = false;
     this.mesh.setColorAt(0, new THREE.Color());
     stage.scene.add(this.mesh);
-    stage.onFrame(dt => this.step(dt));
+    stage.onFrame((dt, _now, jumped) => {
+      // Shards are short-lived; after a long gap they are already over.
+      if (jumped) this.shards.length = 0;
+      this.step(dt);
+    });
   }
 
   burst(at: THREE.Vector3, o: BurstOptions) {
@@ -95,8 +99,11 @@ export class Labels {
     });
   }
 
-  /** Shows `el` at `at()` for the duration of its animation, then removes it. */
-  async show(el: HTMLElement, at: () => { x: number; y: number }, frames: Keyframe[], ms: number) {
+  /**
+   * Shows `el` at `at()` for the duration of its animation, then removes it. `late` starts
+   * the animation part-way, for a label whose moment has already begun.
+   */
+  async show(el: HTMLElement, at: () => { x: number; y: number }, frames: Keyframe[], ms: number, late = 0) {
     const item = { el, at };
     const p = at();
     el.style.left = p.x + 'px';
@@ -106,6 +113,7 @@ export class Labels {
     this.live.add(item);
     const still = reducedMotion.matches ? frames.map(({ transform: _, ...rest }) => rest) : frames;
     const animation = el.animate(still, { duration: ms, easing: 'ease-out', fill: 'both' });
+    if (late > 0) animation.currentTime = late;
     try { await animation.finished; } catch { /* cancelled */ } finally {
       this.live.delete(item);
       el.remove();
